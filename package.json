@@ -1,0 +1,15 @@
+{
+  "name": "filecoin-client-datacap-allocation-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Fabrizio, Ivan",
+  "license": "ISC",
+  "dependencies": {
+    "@octokit/auth-app": "^3.6.0",
+    "@octokit/rest": "^18.9.1"
+  }
+}
