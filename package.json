@@ -18,7 +18,9 @@
   "dependencies": {
     "@octokit/auth-app": "^3.6.0",
     "@octokit/rest": "^18.9.1",
-    "dotenv": "^10.0.0"
+    "dotenv": "^10.0.0",
+    "@keyko-io/filecoin-verifier-tools": "file:deps/filecoin-verifier-tools",
+    "@wtfcode/byte-converter": "^1.7.11"
   },
   "devDependencies": {
     "typescript": "^4.3.5"
