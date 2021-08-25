@@ -1,17 +1,13 @@
 import { Octokit } from "@octokit/rest"
-import { createAppAuth } from "@octokit/auth-app"
 import { config } from "./config";
-import { matchGroup, matchAll, bytesToiB, anyToBytes, bytesToB } from "./utils";
+import {  bytesToiB, anyToBytes } from "./utils";
 import { newAllocationRequestComment, statsComment } from "./comments";
 import VerifyAPI from "@keyko-io/filecoin-verifier-tools/api/api.js";
+import { parseReleaseRequest, parseIssue } from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
 import axios from "axios";
-
-
-
 
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
-
 
 type IssueInfo = {
     issueNumber: number,
@@ -27,8 +23,6 @@ type IssueInfo = {
     verifierName?: string
     clientName?: string
     topProvider?: string
-
-
 }
 
 const api = new VerifyAPI( // eslint-disable-line
@@ -37,7 +31,6 @@ const api = new VerifyAPI( // eslint-disable-line
         null,
         process.env.NETWORK_TYPE !== "Mainnet" // if node != Mainnet => testnet = true
     ));
-
 
 const allocationDatacap = async () => {
     try {
@@ -54,7 +47,8 @@ const allocationDatacap = async () => {
         let issueInfoList: IssueInfo[] = []
         for (const issue of rawIssues.data) {
             try {
-
+                if (issue.labels.find((item: any) => item.name === "bot:readyToSign")) { continue }
+                
                 //get all comments of a issue
                 const issueComments = await octokit.rest.issues.listComments({
                     owner,
@@ -63,13 +57,12 @@ const allocationDatacap = async () => {
                 });
 
                 //Parse client address from issue description
-                const regexAddress = /-\s*On-chain\s*address\s*for\s*first\s*allocation:\s*(.*)/m
-                const address = matchGroup(regexAddress, issue.body)
+                const address = await parseIssue(issue.body).address
 
                 //Parse dc requested notary address and 
                 const { dataCapAllocated, msigAddress } = await findDatacapRequested(issueComments)
-                console.log("dataCapAllocated", dataCapAllocated, "msigAddress", msigAddress)
-                if (!dataCapAllocated) { continue }
+                // console.log("dataCapAllocated", dataCapAllocated, "msigAddress", msigAddress, "address", address)
+                if (!dataCapAllocated || !address) { continue }
 
                 //Check datacap remaining for this address
                 let actorAddress: any = await api.actorAddress(address) ? await api.actorAddress(address) : false
@@ -97,12 +90,20 @@ const allocationDatacap = async () => {
                     const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, info.dataCapRemaining, info.msigAddress)
 
                     console.info("CREATE REQUEST COMMENT")
-                    await octokit.issues.createComment({
+                    const commentResult = await octokit.issues.createComment({
                         owner,
                         repo,
                         issue_number: info.issueNumber,
                         body
                     });
+                    if (commentResult.status === 201) {
+                        await octokit.issues.addLabels({
+                            owner,
+                            repo,
+                            issue_number: info.issueNumber,
+                            labels: ['bot:readyToSign']
+                        })
+                    }
 
                     issueInfoList.push(info)
                 }
@@ -121,18 +122,15 @@ const allocationDatacap = async () => {
 
 }
 
-//Previous DC allocated,- allowanceArray[arr.length-1].allowance  #deals-dealCount, #storage providers-providerCount, % deal allocation
-const FILPLUS_URL_API = "https://api.filplus.d.interplanetary.one/public/api"
-const API_KEY = "5c993a17-7b18-4ead-a8a8-89dad981d87e"
 const commentStats = async (list: IssueInfo[]) => {
 
     try {
 
         const apiClients = await axios({
             method: "GET",
-            url: `${FILPLUS_URL_API}/getVerifiedClients`,
+            url: `${config.filpusApi}/getVerifiedClients`,
             headers: {
-                "x-api-key": API_KEY
+                "x-api-key": config.filplusApiKey
             }
         })
 
@@ -156,7 +154,6 @@ const commentStats = async (list: IssueInfo[]) => {
             info.verifierAddressId = apiElement.verifierAddressId || "not found"
             info.verifierName = apiElement.verifierName || "not found"
 
-            //TODO: add verifierAddressId (notary) (link), verifierName(notary name), name (client name)
 
             const body = statsComment(
                 info.msigAddress,
@@ -188,39 +185,30 @@ const commentStats = async (list: IssueInfo[]) => {
 }
 
 allocationDatacap()
-// commentStats()
 
 const findDatacapRequested = async (issueComments: any): Promise<{ dataCapAllocated: any; msigAddress: any; }> => {
     try {
-        const regexNotaryAddress = /####\s*Multisig\s*Notary\s*address\s*>\s*(.*)/g
-        const regexAllocationDatacap = /####\s*DataCap\s*allocation\s*requested\s*\n>\s*(.*)/g
 
-        let filteredBody = []
-        for(let item of issueComments.data){
-            const exDc = regexAllocationDatacap.exec(item.body)
-            const exMsig = regexNotaryAddress.exec(item.body)
-            const dcc = matchGroup(regexAllocationDatacap,exDc?.input)
-            matchGroup(regexNotaryAddress,item.body)
-            if (exMsig && exDc) {
-                filteredBody.push({comment: item.body })
+        let dc = ""
+        let msigAddress = ""
+
+        for (let i = issueComments.data.length - 1; i >= 0; i--) {
+            const parseRequest = await parseReleaseRequest(issueComments.data[i].body)
+            if (parseRequest.correct) {
+                dc = parseRequest.allocationDatacap
+                msigAddress = parseRequest.notaryAddress
+                break;
             }
-           continue;
         }
 
-        const exDc = regexAllocationDatacap.exec(filteredBody[filteredBody.length - 1]?.comment)
-        const exMsig = regexNotaryAddress.exec(filteredBody[filteredBody.length - 1]?.comment)
-        console.log(".........")
         return {
-            dataCapAllocated: exDc ? exDc[1] : null,
-            msigAddress: exMsig ? exMsig[1] : null
+            dataCapAllocated: dc,
+            msigAddress
         }
+
     } catch (error) {
         console.log(error)
     }
 
 
 }
-
-
-
-
