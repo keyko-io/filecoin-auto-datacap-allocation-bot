@@ -1,10 +1,11 @@
 import { Octokit } from "@octokit/rest"
 import { config } from "./config";
-import {  bytesToiB, anyToBytes } from "./utils";
+import { bytesToiB, anyToBytes } from "./utils";
 import { newAllocationRequestComment, statsComment } from "./comments";
 import VerifyAPI from "@keyko-io/filecoin-verifier-tools/api/api.js";
 import { parseReleaseRequest, parseIssue } from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
 import axios from "axios";
+import { createAppAuth } from "@octokit/auth-app";
 
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
@@ -32,12 +33,22 @@ const api = new VerifyAPI( // eslint-disable-line
         process.env.NETWORK_TYPE !== "Mainnet" // if node != Mainnet => testnet = true
     ));
 
+const octokit = new Octokit({
+        authStrategy: createAppAuth,
+        auth: {
+            type: "installation",
+            installationId: 16461975,
+            appId: config.appId,
+            privateKey: `${config.privateKey}`,
+            clientId: config.clientId,
+            clientSecret: config.clientSecret
+        }
+    });
+    
+
 const allocationDatacap = async () => {
     try {
-        const octokit = await new Octokit({
-            auth: config.githubToken,
-        });
-
+        console.info("Welcome to the auto-datacap-allocation-bot.")
         const rawIssues = await octokit.issues.listForRepo({
             owner,
             repo,
@@ -47,8 +58,10 @@ const allocationDatacap = async () => {
         let issueInfoList: IssueInfo[] = []
         for (const issue of rawIssues.data) {
             try {
-                if (issue.labels.find((item: any) => item.name === "bot:readyToSign")) { continue }
-                
+               
+                if (issue.labels.find((item: any) => item.name === "bot:readyToSign")) { 
+                    continue }
+
                 //get all comments of a issue
                 const issueComments = await octokit.rest.issues.listComments({
                     owner,
@@ -114,8 +127,8 @@ const allocationDatacap = async () => {
                 continue
             }
         }
-
         commentStats(issueInfoList)
+        console.info(`auto-datacap-allocation-bot ended. number of issues commented: ${issueInfoList.length}`)
     } catch (error) {
         console.warn(error)
     }
@@ -135,10 +148,6 @@ const commentStats = async (list: IssueInfo[]) => {
         })
 
         const clients = apiClients.data.data;
-
-        const octokit = await new Octokit({
-            auth: config.githubToken,
-        });
 
         //get stats & comment
         for (const info of list) {
@@ -184,8 +193,6 @@ const commentStats = async (list: IssueInfo[]) => {
 
 }
 
-allocationDatacap()
-
 const findDatacapRequested = async (issueComments: any): Promise<{ dataCapAllocated: any; msigAddress: any; }> => {
     try {
 
@@ -212,3 +219,5 @@ const findDatacapRequested = async (issueComments: any): Promise<{ dataCapAlloca
 
 
 }
+
+allocationDatacap()

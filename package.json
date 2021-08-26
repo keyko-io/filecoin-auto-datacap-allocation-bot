@@ -18,6 +18,7 @@
   "dependencies": {
     "@keyko-io/filecoin-verifier-tools": "file:deps/filecoin-verifier-tools",
     "@octokit/auth-app": "^3.6.0",
+    "@octokit/core": "^3.5.1",
     "@octokit/rest": "^18.9.1",
     "@wtfcode/byte-converter": "^1.7.11",
     "axios": "^0.21.1",
