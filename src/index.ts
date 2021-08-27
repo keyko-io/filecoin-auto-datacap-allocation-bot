@@ -16,7 +16,7 @@ type IssueInfo = {
     address: string,
     actorAddress: string,
     dcAllocationRequested: string,
-    dataCapRemaining: string,
+    remainingDatacap: string,
     previousDcAllocated?: string,
     nDeals?: string,
     nStorageProviders?: string,
@@ -96,11 +96,11 @@ const allocationDatacap = async () => {
                     address: address,
                     actorAddress,
                     dcAllocationRequested: !dataCapAllocated.endsWith("B") ? bytesToiB(dataCapAllocated) : dataCapAllocated,
-                    dataCapRemaining: bytesToiB(dataCapRemainingBytes)
+                    remainingDatacap: bytesToiB(dataCapRemainingBytes)
                 }
 
                 if (margin <= 0.75) {
-                    const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, info.dataCapRemaining, info.msigAddress)
+                    const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, info.remainingDatacap, info.msigAddress)
 
                     console.info("CREATE REQUEST COMMENT")
                     const commentResult = await octokit.issues.createComment({
@@ -174,7 +174,9 @@ const commentStats = async (list: IssueInfo[]) => {
                 info.nDeals,
                 info.previousDcAllocated,
                 info.dcAllocationRequested,
-                info.nStorageProviders
+                info.nStorageProviders,
+                info.remainingDatacap,
+                info.actorAddress,
             )
             await octokit.issues.createComment({
                 owner,

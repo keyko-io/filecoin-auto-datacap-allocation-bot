@@ -24,6 +24,8 @@ export const statsComment = (
             previousDcAllocated: string,
             dcAllocationRequested: string,
             nStorageProviders: string,
+            remainingDatacap: string,
+            actorAddress: string
     //other data
     ): string => {
     // \r#### Notary address\r\n> ${notaryId}
@@ -33,10 +35,9 @@ export const statsComment = (
     \r#### Multisig Notary address\r\n> ${msigAddress}
     \r#### Client address\r\n> ${address} \r\n
     \r#### DataCap allocation requested\n> ${dcAllocationRequested}
-    \r#### Stats
-| Number of deals  | Number of storage providers | Previous DataCap Allocated  |  Top provider |
-|---|---|---|---|
-| ${nDeals}  | ${nStorageProviders}  |  ${previousDcAllocated} | ${topProvider}  |
+    \r#### **[Stats](https://filplus.d.interplanetary.one/clients?filter=${actorAddress} "Go to stats")**
+| Number of deals  | Number of storage providers | Previous DC Allocated  |  Top provider | Remaining DC
+|---|---|---|---|---|
+| ${nDeals}  | ${nStorageProviders}  |  ${previousDcAllocated} | ${topProvider}  | ${remainingDatacap}
     `
 }
-
