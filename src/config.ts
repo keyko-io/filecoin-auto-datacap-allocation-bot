@@ -12,5 +12,7 @@ export const config = {
     appId: process.env.APP_ID,
     clientId: process.env.CLIENT_ID,
     clientSecret: process.env.CLIENT_SECRET,
+    beginPk:process.env.GIT_BEGIN_PK,
+    endPk:process.env.GIT_END_PK,
     privateKey: process.env.GIT_PRIVATE_KEY
 }

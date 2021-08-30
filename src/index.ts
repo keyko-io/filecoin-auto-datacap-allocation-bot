@@ -33,13 +33,23 @@ const api = new VerifyAPI( // eslint-disable-line
         process.env.NETWORK_TYPE !== "Mainnet" // if node != Mainnet => testnet = true
     ));
 
+const formatPK = () =>{
+    const BEGIN = config.beginPk 
+    const END = config.endPk 
+    const splitted = config.privateKey.match(/.{1,64}/g);
+    const formatted = `${BEGIN}\n${splitted.join("\n")}\n${END}`
+    return formatted;
+}
+
+
+
 const octokit = new Octokit({
         authStrategy: createAppAuth,
         auth: {
             type: "installation",
             installationId: 16461975,
             appId: config.appId,
-            privateKey: `${config.privateKey}`,
+            privateKey: formatPK(),
             clientId: config.clientId,
             clientSecret: config.clientSecret
         }

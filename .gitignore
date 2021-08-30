@@ -1,5 +1,8 @@
 node_modules
 .env
+.env.localhost
+.DS_Store
 yarn.lock
 dist
+src/.DS_Store
 package-lock.json
