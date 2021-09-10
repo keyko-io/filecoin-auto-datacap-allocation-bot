@@ -81,17 +81,23 @@ const allocationDatacap = async () => {
                     issue_number: issue.number,
                 });
 
+                //parse weeklhy dc in issue
+                const weeklyDcAllocation = parseIssue(issue.body).dataCapWeeklyAllocation;
+
                 //Parse dc requested msig notary address and  client address
-                const { dataCapAllocated, msigAddress, clientAddress } = await findDatacapRequested(issueComments)
-                if (!dataCapAllocated && !clientAddress) {
+                const requestList = await findDatacapRequested(issueComments)
+                const lastRequest = requestList[requestList.length - 1]
+                const requestNumber = requestList.length
+
+                if (!lastRequest.allocationDatacap && !lastRequest.clientAddress) {
                     console.log(`Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`)
                     continue
                 }
-                if (!clientAddress) {
+                if (!lastRequest.clientAddress) {
                     console.log(`Issue number ${issue.number} skipped --> clientAddressnot found after parsing the comments`)
                     continue
                 }
-                if (!dataCapAllocated ) {
+                if (!lastRequest.allocationDatacap) {
                     console.log(`Issue number ${issue.number} skipped --> datacapAllocated not found after parsing the comments`)
                     continue
                 }
@@ -101,31 +107,36 @@ const allocationDatacap = async () => {
                 //Check datacap remaining for this address 
                 // TODO check if dc on comment has really been allocated
                 let actorAddress: any = ""
-                if (clientAddress.startsWith("f1")) {
-                    actorAddress = await api.actorAddress(clientAddress) 
+                if (lastRequest.clientAddress.startsWith("f1")) {
+                    actorAddress = await api.actorAddress(lastRequest.clientAddress)
                 } else {
-                    actorAddress = await api.cachedActorAddress(clientAddress) 
+                    actorAddress = await api.cachedActorAddress(lastRequest.clientAddress)
                 }
 
-                const checkClient = await api.checkClient(actorAddress) 
+                const checkClient = await api.checkClient(actorAddress)
+                console.log("checkClient", checkClient)
 
-                const dataCapAllocatedConvert = dataCapAllocated.endsWith("B") ? anyToBytes(dataCapAllocated) : dataCapAllocated
+                const dataCapAllocatedConvert = lastRequest.allocationDatacap.endsWith("B") ? anyToBytes(lastRequest.allocationDatacap) : lastRequest.allocationDatacap
                 const dataCapAllocatedBytes = Number(dataCapAllocatedConvert)
                 const dataCapRemainingBytes = Number(checkClient[0].datacap)
 
                 const margin = dataCapRemainingBytes / dataCapAllocatedBytes
                 console.log("Margin", margin)
 
+
+                const dcAllocationRequested = calculateAllocationToRequest(weeklyDcAllocation, requestNumber)
+
                 const info: IssueInfo = {
                     issueNumber: issue.number,
-                    msigAddress,
-                    address: clientAddress,
+                    msigAddress: lastRequest.notaryAddress,
+                    address: lastRequest.clientAddress,
                     actorAddress,
-                    dcAllocationRequested: !dataCapAllocated.endsWith("B") ? bytesToiB(dataCapAllocated) : dataCapAllocated,
+                    dcAllocationRequested,
                     remainingDatacap: bytesToiB(dataCapRemainingBytes)
                 }
 
                 if (margin <= 0.75) {
+                // if (issue.number === 80) {
                     const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, info.remainingDatacap, info.msigAddress)
 
                     console.log("CREATE REQUEST COMMENT")
@@ -166,9 +177,7 @@ const allocationDatacap = async () => {
 }
 
 const commentStats = async (list: IssueInfo[]) => {
-
     try {
-
         const apiClients = await axios({
             method: "GET",
             url: `${config.filpusApi}/getVerifiedClients`,
@@ -187,7 +196,8 @@ const commentStats = async (list: IssueInfo[]) => {
 
             info.topProvider = apiElement.top_provider || "0"
             info.nDeals = apiElement.dealCount || "0"
-            info.previousDcAllocated = bytesToiB(apiElement.allowanceArray[apiElement.allowanceArray.length - 1].allowance) || "not found"
+            info.previousDcAllocated = info.dcAllocationRequested || "not found"
+            // info.previousDcAllocated = bytesToiB(apiElement.allowanceArray[apiElement.allowanceArray.length - 1].allowance) || "not found"
             info.nStorageProviders = apiElement.providerCount || "0"
             info.clientName = apiElement.name || "not found"
             info.verifierAddressId = apiElement.verifierAddressId || "not found"
@@ -225,29 +235,42 @@ const commentStats = async (list: IssueInfo[]) => {
 
 }
 
-const findDatacapRequested = async (issueComments: any): Promise<{ dataCapAllocated: any; msigAddress: any; clientAddress: any }> => {
+
+
+const calculateAllocationToRequest = (allocationDatacap: string, requestNumber: number) => {
+    // transform in bytes
+    const bytesAllocationDatacap = allocationDatacap.endsWith("B") ? anyToBytes(allocationDatacap) : parseInt(allocationDatacap)
+
+    // if it is the 2nd request (requestNumber = 1 ), assign 100% of the amount in the issue
+    // from the 3rd request on, assign 200% of the amount in the issue
+    console.log("requestNumber", requestNumber)
+    const dcAmountBytes = requestNumber == 1 ? bytesAllocationDatacap  :
+        requestNumber >= 2 ? bytesAllocationDatacap*2 : bytesAllocationDatacap/2
+
+    const dcAmountiB = bytesToiB(dcAmountBytes)
+    return dcAmountiB
+}
+
+const findDatacapRequested = async (issueComments: any): Promise<
+    {
+        multisigMessage: boolean,
+        correct: boolean,
+        notaryAddress: string,
+        clientAddress: string,
+        allocationDatacap: string,
+        allocationDataCapAmount: string[]
+    }[]
+> => {
     try {
 
-        let dc = ""
-        let msigAddress = ""
-        let clientAddress = ""
-
-        for (let i = issueComments.data.length - 1; i >= 0; i--) {
+        let requestList: any[] = []
+        for (let i = 0; i < issueComments.data.length; i++) {
             const parseRequest = await parseReleaseRequest(issueComments.data[i].body)
             if (parseRequest.correct) {
-                dc = parseRequest.allocationDatacap
-                msigAddress = parseRequest.notaryAddress
-                clientAddress = parseRequest.clientAddress
-                break;
+                requestList.push(parseRequest)
             }
         }
-
-        return {
-            dataCapAllocated: dc,
-            msigAddress,
-            clientAddress
-        }
-
+        return requestList
     } catch (error) {
         console.log(error)
     }

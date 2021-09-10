@@ -11,7 +11,8 @@
     "eslint": "eslint 'src/**'",
     "eslint-fix": "eslint 'src/**' --fix",
     "dev-start": "npm run build && npm start",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "update-deps": "git submodule update --remote deps/filecoin-verifier-tools"
   },
   "author": "Fabrizio, Ivan",
   "license": "ISC",
