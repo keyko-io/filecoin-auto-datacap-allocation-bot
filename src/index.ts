@@ -3,7 +3,7 @@ import { config } from "./config";
 import { bytesToiB, anyToBytes } from "./utils";
 import { newAllocationRequestComment, statsComment } from "./comments";
 import VerifyAPI from "@keyko-io/filecoin-verifier-tools/api/api.js";
-import { parseReleaseRequest, parseIssue } from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
+import { parseReleaseRequest, parseIssue, parseApprovedRequestWithSignerAddress } from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
 import axios from "axios";
 import { createAppAuth } from "@octokit/auth-app";
 
@@ -23,7 +23,8 @@ type IssueInfo = {
     verifierAddressId?: string
     verifierName?: string
     clientName?: string
-    topProvider?: string
+    topProvider?: string,
+    lastTwoSigners?: string[]
 }
 
 const api = new VerifyAPI( // eslint-disable-line
@@ -102,8 +103,6 @@ const allocationDatacap = async () => {
                     continue
                 }
 
-
-
                 //Check datacap remaining for this address 
                 // TODO check if dc on comment has really been allocated
                 let actorAddress: any = ""
@@ -120,11 +119,18 @@ const allocationDatacap = async () => {
                 const dataCapAllocatedBytes = Number(dataCapAllocatedConvert)
                 const dataCapRemainingBytes = Number(checkClient[0].datacap)
 
+                // console.log("dataCapRemainingBytes, dataCapAllocatedBytes" ,dataCapRemainingBytes ,dataCapAllocatedBytes)
+                // console.log("dataCapRemaining, dataCapAllocated" ,bytesToiB(dataCapRemainingBytes) ,bytesToiB(dataCapAllocatedBytes))
                 const margin = dataCapRemainingBytes / dataCapAllocatedBytes
+                // const margin = dataCapRemainingBytes / dataCapAllocatedBytes
                 console.log("Margin", margin)
 
 
                 const dcAllocationRequested = calculateAllocationToRequest(weeklyDcAllocation, requestNumber)
+
+                // retrieve last 2 signers to put in stat comment
+                const lastTwoSigners : string[] =  retrieveLastTwoSigners(issueComments)
+
 
                 const info: IssueInfo = {
                     issueNumber: issue.number,
@@ -132,12 +138,14 @@ const allocationDatacap = async () => {
                     address: lastRequest.clientAddress,
                     actorAddress,
                     dcAllocationRequested,
-                    remainingDatacap: bytesToiB(dataCapRemainingBytes)
+                    remainingDatacap: bytesToiB(dataCapRemainingBytes),
+                    lastTwoSigners
                 }
 
                 if (margin <= 0.75) {
-                // if (issue.number === 80) {
-                    const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, info.remainingDatacap, info.msigAddress)
+                // if (issue.number === 163)  ***USED FOR TEST***
+                   
+                    const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, "90TiB", info.msigAddress)
 
                     console.log("CREATE REQUEST COMMENT")
                     const commentResult = await octokit.issues.createComment({
@@ -156,18 +164,20 @@ const allocationDatacap = async () => {
                     }
 
                     issueInfoList.push(info)
+                    
                 }
 
                 console.log("Info", info);
+                
 
             } catch (error) {
                 console.log(`Error with the issue n ${issue.number}:`)
-                console.log(error)
+                // console.log(error)
                 console.log(`**Please, check that the datacap for the issue client has been granted**`)
                 continue
             }
         }
-        commentStats(issueInfoList)
+        await commentStats(issueInfoList)
         console.log(`Auto-datacap-allocation-bot ended. Number of issues commented: ${issueInfoList.length}`)
     } catch (error) {
         console.error("error listing the issues, generic error in the bot")
@@ -192,8 +202,11 @@ const commentStats = async (list: IssueInfo[]) => {
         for (const info of list) {
 
 
+            // const apiElement = clients.find((item: any) => item.address === "f1ztll3caq5m3qivovzipywtzqc75ebgpz4vieyiq")
             const apiElement = clients.find((item: any) => item.address === info.address)
-
+            if ( apiElement === undefined){
+                throw new Error(`stat comment of issue n ${ info.issueNumber} failed because the bot couldn't find the correspondent address in the filplus dashboard`)
+            }
             info.topProvider = apiElement.top_provider || "0"
             info.nDeals = apiElement.dealCount || "0"
             info.previousDcAllocated = info.dcAllocationRequested || "not found"
@@ -217,7 +230,10 @@ const commentStats = async (list: IssueInfo[]) => {
                 info.nStorageProviders,
                 info.remainingDatacap,
                 info.actorAddress,
+                info.lastTwoSigners
             )
+
+            console.log("CREATE STATS COMMENT", info.issueNumber)
             await octokit.issues.createComment({
                 owner,
                 repo,
@@ -274,8 +290,22 @@ const findDatacapRequested = async (issueComments: any): Promise<
     } catch (error) {
         console.log(error)
     }
+}
 
+const retrieveLastTwoSigners =  (issueComments: any): string[] => {
+    try {
 
+        let requestList: string[] = []
+        for (let i = 0; i < issueComments.data.length; i++) {
+            const parseRequest = parseApprovedRequestWithSignerAddress(issueComments.data[i].body)
+            if (parseRequest.correct) {
+                requestList.push(parseRequest.signerAddress)
+            }
+        }
+        return requestList.slice(-2)
+    } catch (error) {
+        console.log(error)
+    }
 }
 
 allocationDatacap()
