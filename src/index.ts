@@ -60,6 +60,7 @@ const octokit = new Octokit({
 const allocationDatacap = async () => {
     try {
         console.log("Welcome to the auto-datacap-allocation-bot.")
+
         const rawIssues = await octokit.issues.listForRepo({
             owner,
             repo,
@@ -129,7 +130,7 @@ const allocationDatacap = async () => {
                 const dcAllocationRequested = calculateAllocationToRequest(weeklyDcAllocation, requestNumber)
 
                 // retrieve last 2 signers to put in stat comment
-                const lastTwoSigners : string[] =  retrieveLastTwoSigners(issueComments)
+                const lastTwoSigners: string[] = retrieveLastTwoSigners(issueComments)
 
 
                 const info: IssueInfo = {
@@ -143,8 +144,8 @@ const allocationDatacap = async () => {
                 }
 
                 if (margin <= 0.75) {
-                // if (issue.number === 163)  ***USED FOR TEST***
-                   
+                // if (issue.number === 190) {// ***USED FOR TEST***
+
                     const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, "90TiB", info.msigAddress)
 
                     console.log("CREATE REQUEST COMMENT")
@@ -164,11 +165,11 @@ const allocationDatacap = async () => {
                     }
 
                     issueInfoList.push(info)
-                    
+
                 }
 
                 console.log("Info", info);
-                
+
 
             } catch (error) {
                 console.log(`Error with the issue n ${issue.number}:`)
@@ -204,8 +205,8 @@ const commentStats = async (list: IssueInfo[]) => {
 
             // const apiElement = clients.find((item: any) => item.address === "f1ztll3caq5m3qivovzipywtzqc75ebgpz4vieyiq")
             const apiElement = clients.find((item: any) => item.address === info.address)
-            if ( apiElement === undefined){
-                throw new Error(`stat comment of issue n ${ info.issueNumber} failed because the bot couldn't find the correspondent address in the filplus dashboard`)
+            if (apiElement === undefined) {
+                throw new Error(`stat comment of issue n ${info.issueNumber} failed because the bot couldn't find the correspondent address in the filplus dashboard`)
             }
             info.topProvider = apiElement.top_provider || "0"
             info.nDeals = apiElement.dealCount || "0"
@@ -215,6 +216,14 @@ const commentStats = async (list: IssueInfo[]) => {
             info.clientName = apiElement.name || "not found"
             info.verifierAddressId = apiElement.verifierAddressId || "not found"
             info.verifierName = apiElement.verifierName || "not found"
+
+            
+
+        const verifiers: any = await octokit.request('GET https://raw.githubusercontent.com/keyko-io/filecoin-verifier-frontend/develop/src/data/verifiers.json')
+        const notaries = JSON.parse(verifiers.data).notaries
+       
+        const addresses = info.lastTwoSigners
+        const githubHandle = addresses.map((addr:any) => notaries.find((notar: any)=> notar.ldn_config.signing_address === addr).github_user[0])
 
 
             const body = statsComment(
@@ -230,7 +239,8 @@ const commentStats = async (list: IssueInfo[]) => {
                 info.nStorageProviders,
                 info.remainingDatacap,
                 info.actorAddress,
-                info.lastTwoSigners
+                info.lastTwoSigners,
+                githubHandle
             )
 
             console.log("CREATE STATS COMMENT", info.issueNumber)
@@ -260,8 +270,8 @@ const calculateAllocationToRequest = (allocationDatacap: string, requestNumber: 
     // if it is the 2nd request (requestNumber = 1 ), assign 100% of the amount in the issue
     // from the 3rd request on, assign 200% of the amount in the issue
     console.log("requestNumber", requestNumber)
-    const dcAmountBytes = requestNumber == 1 ? bytesAllocationDatacap  :
-        requestNumber >= 2 ? bytesAllocationDatacap*2 : bytesAllocationDatacap/2
+    const dcAmountBytes = requestNumber == 1 ? bytesAllocationDatacap :
+        requestNumber >= 2 ? bytesAllocationDatacap * 2 : bytesAllocationDatacap / 2
 
     const dcAmountiB = bytesToiB(dcAmountBytes)
     return dcAmountiB
@@ -292,7 +302,7 @@ const findDatacapRequested = async (issueComments: any): Promise<
     }
 }
 
-const retrieveLastTwoSigners =  (issueComments: any): string[] => {
+const retrieveLastTwoSigners = (issueComments: any): string[] => {
     try {
 
         let requestList: string[] = []
