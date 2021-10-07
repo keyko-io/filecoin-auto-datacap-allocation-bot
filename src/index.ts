@@ -39,6 +39,7 @@ const formatPK = () => {
     const END = config.endPk
     const splitted = config.privateKey.match(/.{1,64}/g);
     const formatted = `${BEGIN}\n${splitted.join("\n")}\n${END}`
+    console.log("formatted", formatted)
     return formatted;
 }
 
