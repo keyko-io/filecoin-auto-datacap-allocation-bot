@@ -48,7 +48,7 @@ const octokit = new Octokit({
     authStrategy: createAppAuth,
     auth: {
         type: "installation",
-        installationId: 16461975,
+        installationId: config.installationID,
         appId: config.appId,
         privateKey: formatPK(),
         clientId: config.clientId,
@@ -269,7 +269,8 @@ const calculateAllocationToRequest = (allocationDatacap: string, requestNumber: 
 
     // if it is the 2nd request (requestNumber = 1 ), assign 100% of the amount in the issue
     // from the 3rd request on, assign 200% of the amount in the issue
-    console.log("requestNumber", requestNumber)
+    console.log("allocation request number", requestNumber)
+    console.log("weeklyDcAllocation in issue", allocationDatacap)
     const dcAmountBytes = requestNumber == 1 ? bytesAllocationDatacap :
         requestNumber >= 2 ? bytesAllocationDatacap * 2 : bytesAllocationDatacap / 2
 

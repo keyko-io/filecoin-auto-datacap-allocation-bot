@@ -14,5 +14,6 @@ export const config = {
     clientSecret: process.env.CLIENT_SECRET,
     beginPk:process.env.GIT_BEGIN_PK,
     endPk:process.env.GIT_END_PK,
-    privateKey: process.env.GIT_PRIVATE_KEY
+    privateKey: process.env.GIT_PRIVATE_KEY,
+    installationID: process.env.INSTALLATION_ID
 }
