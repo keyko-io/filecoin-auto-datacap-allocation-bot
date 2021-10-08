@@ -144,7 +144,7 @@ const allocationDatacap = async () => {
                     lastTwoSigners
                 }
 
-                if (margin <= 0.75) {
+                if (margin <= 0.25) {
                 // if (issue.number === 190) {// ***USED FOR TEST***
 
                     const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, "90TiB", info.msigAddress)
