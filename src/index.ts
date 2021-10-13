@@ -6,6 +6,8 @@ import VerifyAPI from "@keyko-io/filecoin-verifier-tools/api/api.js";
 import { parseReleaseRequest, parseIssue, parseApprovedRequestWithSignerAddress } from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
 import axios from "axios";
 import { createAppAuth } from "@octokit/auth-app";
+import { EVENT_TYPE, MetricsApiParams } from "./Metrics"
+const { callMetricsApi } = require('@keyko-io/filecoin-verifier-tools/metrics/metrics')
 
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
@@ -145,7 +147,7 @@ const allocationDatacap = async () => {
                 }
 
                 if (margin <= 0.25) {
-                // if (issue.number === 190) {// ***USED FOR TEST***
+                    // if (issue.number === 190) {// ***USED FOR TEST***
 
                     const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, "90TiB", info.msigAddress)
 
@@ -218,13 +220,13 @@ const commentStats = async (list: IssueInfo[]) => {
             info.verifierAddressId = apiElement.verifierAddressId || "not found"
             info.verifierName = apiElement.verifierName || "not found"
 
-            
 
-        const verifiers: any = await octokit.request('GET https://raw.githubusercontent.com/keyko-io/filecoin-verifier-frontend/develop/src/data/verifiers.json')
-        const notaries = JSON.parse(verifiers.data).notaries
-       
-        const addresses = info.lastTwoSigners
-        const githubHandle = addresses.map((addr:any) => notaries.find((notar: any)=> notar.ldn_config.signing_address === addr).github_user[0])
+
+            const verifiers: any = await octokit.request('GET https://raw.githubusercontent.com/keyko-io/filecoin-verifier-frontend/develop/src/data/verifiers.json')
+            const notaries = JSON.parse(verifiers.data).notaries
+
+            const addresses = info.lastTwoSigners
+            const githubHandle = addresses.map((addr: any) => notaries.find((notar: any) => notar.ldn_config.signing_address === addr).github_user[0])
 
 
             const body = statsComment(
@@ -252,6 +254,14 @@ const commentStats = async (list: IssueInfo[]) => {
                 body
             });
 
+            //METRICS
+            const params: MetricsApiParams = {
+                name: info.clientName,
+                clientAddress: info.address,
+                msigAddress: info.msigAddress,
+                amount: info.dcAllocationRequested
+            }
+            console.log(callMetricsApi(info.issueNumber, EVENT_TYPE.SUBSEQUENT_DC_REQUEST, params)) //TEST
         }
 
 
