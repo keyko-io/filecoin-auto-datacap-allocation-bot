@@ -91,7 +91,13 @@ const allocationDatacap = async () => {
                 });
 
                 //parse weeklhy dc in issue
-                const weeklyDcAllocation = parseIssue(issue.body).dataCapWeeklyAllocation;
+                // the amount to take into account is expected weekly usage rate or 5% of total dc requested (the lower)
+                // in this case I compare the entire weekly amount and 10% of total datacap requested
+                const weeklyDcAllocationBytes = anyToBytes(parseIssue(issue.body).dataCapWeeklyAllocation.toString())
+                const tenPercentAllocationBytes = anyToBytes(parseIssue(issue.body).datacapRequested.toString()) * 0.1
+
+
+                const allocation = weeklyDcAllocationBytes <= tenPercentAllocationBytes ? weeklyDcAllocationBytes : tenPercentAllocationBytes
 
                 //Parse dc requested msig notary address and  client address
                 const requestList = await findDatacapRequested(issueComments)
@@ -134,7 +140,7 @@ const allocationDatacap = async () => {
                 console.log("Margin", margin)
 
 
-                const dcAllocationRequested = calculateAllocationToRequest(weeklyDcAllocation, requestNumber)
+                const dcAllocationRequested = calculateAllocationToRequest(allocation, requestNumber)
 
                 // retrieve last 2 signers to put in stat comment
                 const lastTwoSigners: string[] = retrieveLastTwoSigners(issueComments)
@@ -151,7 +157,7 @@ const allocationDatacap = async () => {
                 }
 
                 if (margin <= 0.25) {
-                    // if (issue.number === 190) {// ***USED FOR TEST***
+                    // if (issue.number === 257) {// ***USED FOR TEST***
 
                     const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, "90TiB", info.msigAddress)
 
@@ -179,7 +185,7 @@ const allocationDatacap = async () => {
 
 
             } catch (error) {
-                console.log(`Error with the issue n ${issue.number}:`)
+                console.log(`Error, issue n ${issue.number}:`)
                 // console.log(error)
                 console.log(`**Please, check that the datacap for the issue client has been granted**`)
                 continue
@@ -278,19 +284,13 @@ const commentStats = async (list: IssueInfo[]) => {
 
 
 
-const calculateAllocationToRequest = (allocationDatacap: string, requestNumber: number) => {
-    // transform in bytes
-    const bytesAllocationDatacap = allocationDatacap.endsWith("B") ? anyToBytes(allocationDatacap) : parseInt(allocationDatacap)
+const calculateAllocationToRequest = (allocationDatacap: number, requestNumber: number) => {
 
     // if it is the 2nd request (requestNumber = 1 ), assign 100% of the amount in the issue
     // from the 3rd request on, assign 200% of the amount in the issue
-    console.log("allocation request number", requestNumber)
-    console.log("weeklyDcAllocation in issue", allocationDatacap)
-    const dcAmountBytes = requestNumber == 1 ? bytesAllocationDatacap :
-        requestNumber >= 2 ? bytesAllocationDatacap * 2 : bytesAllocationDatacap / 2
-
-    const dcAmountiB = bytesToiB(dcAmountBytes)
-    return dcAmountiB
+    const dcAmountBytes = requestNumber == 1 ? allocationDatacap :
+        requestNumber >= 2 ? allocationDatacap * 2 : allocationDatacap / 2
+    return bytesToiB(Math.floor(dcAmountBytes))
 }
 
 const findDatacapRequested = async (issueComments: any): Promise<
