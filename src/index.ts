@@ -3,7 +3,7 @@ import { config } from "./config";
 import { bytesToiB, anyToBytes } from "./utils";
 import { newAllocationRequestComment, statsComment } from "./comments";
 import VerifyAPI from "@keyko-io/filecoin-verifier-tools/api/api.js";
-import { parseReleaseRequest, parseIssue, parseApprovedRequestWithSignerAddress } from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
+import { parseReleaseRequest, parseApprovedRequestWithSignerAddress, parseMultisigNotaryRequest, parseIssue} from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
 import axios from "axios";
 import { createAppAuth } from "@octokit/auth-app";
 import { EVENT_TYPE, MetricsApiParams } from "./Metrics"
@@ -41,7 +41,6 @@ const formatPK = () => {
     const END = config.endPk
     const splitted = config.privateKey.match(/.{1,64}/g);
     const formatted = `${BEGIN}\n${splitted.join("\n")}\n${END}`
-    console.log("formatted", formatted)
     return formatted;
 }
 
@@ -157,7 +156,7 @@ const allocationDatacap = async () => {
                 }
 
                 if (margin <= 0.25) {
-                    // if (issue.number === 257) {// ***USED FOR TEST***
+                    // if (issue.number === 251) {// ***USED FOR TEST***
 
                     const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, "90TiB", info.msigAddress)
 
