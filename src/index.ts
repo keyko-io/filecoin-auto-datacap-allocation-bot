@@ -63,6 +63,15 @@ const allocationDatacap = async () => {
     try {
         console.log("Welcome to the auto-datacap-allocation-bot.")
 
+        const clientsByVerifierRes =await axios({
+            method: "GET",
+            url: `${config.filpusApi}/getVerifiedClients`,
+            headers: {
+                "x-api-key": config.filplusApiKey
+            }
+        })
+
+        
         const rawIssues = await octokit.issues.listForRepo({
             owner,
             repo,
@@ -103,6 +112,10 @@ const allocationDatacap = async () => {
                 const lastRequest = requestList[requestList.length - 1]
                 const requestNumber = requestList.length
 
+                if (lastRequest === undefined) {
+                    console.log(`Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`)
+                    continue
+                }
                 if (!lastRequest.allocationDatacap && !lastRequest.clientAddress) {
                     console.log(`Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`)
                     continue
@@ -117,7 +130,15 @@ const allocationDatacap = async () => {
                 }
 
                 //Check datacap remaining for this address 
-                // TODO check if dc on comment has really been allocated
+
+                
+                const client = clientsByVerifierRes.data.data.find((item:any) => item.address == lastRequest.clientAddress)
+                if (!client) {
+                    console.log(`Issue number ${issue.number} skipped --> dc not allocated yet`);
+                    continue
+                }
+
+
                 let actorAddress: any = ""
                 if (lastRequest.clientAddress.startsWith("f1")) {
                     actorAddress = await api.actorAddress(lastRequest.clientAddress)
@@ -126,17 +147,29 @@ const allocationDatacap = async () => {
                 }
 
                 const checkClient = await api.checkClient(actorAddress)
-                console.log("checkClient", checkClient)
+                const clientAllowanceObj =await axios({
+                    method: "GET",
+                    url: `${config.filpusApi}/getAllowanceForAddress/${lastRequest.clientAddress}`,
+                    headers: {
+                        "x-api-key": config.filplusApiKey
+                    }
+                })
+                // console.log("checkClient", checkClient)
+                // console.log("clP", clientAllowanceObj.data.allowance)
+                
 
                 const dataCapAllocatedConvert = lastRequest.allocationDatacap.endsWith("B") ? anyToBytes(lastRequest.allocationDatacap) : lastRequest.allocationDatacap
                 const dataCapAllocatedBytes = Number(dataCapAllocatedConvert)
-                const dataCapRemainingBytes = Number(checkClient[0].datacap)
+                const dataCapRemainingBytes : number  = clientAllowanceObj.data.allowance
 
-                // console.log("dataCapRemainingBytes, dataCapAllocatedBytes" ,dataCapRemainingBytes ,dataCapAllocatedBytes)
-                // console.log("dataCapRemaining, dataCapAllocated" ,bytesToiB(dataCapRemainingBytes) ,bytesToiB(dataCapAllocatedBytes))
+                // if(checkClient[0]?.datacap != dataCapRemainingBytes){
+                //     console.error(`issue number ${issue.number}, actoraddress ${actorAddress} - address ${lastRequest.clientAddress} values from node (${checkClient[0]?.datacap}) and values from API (${client.allowance} don't match`)
+                //     continue
+                // }
+
+                // console.log("dataCapRemaining, dataCapAllocated", "checkClient" ,bytesToiB(dataCapRemainingBytes) ,bytesToiB(dataCapAllocatedBytes), checkClient[0]?.datacap)
                 const margin = dataCapRemainingBytes / dataCapAllocatedBytes
-                // const margin = dataCapRemainingBytes / dataCapAllocatedBytes
-                console.log("Margin", margin)
+                console.log(`Issue n ${issue.number} margin:`, margin)
 
 
                 const dcAllocationRequested = calculateAllocationToRequest(allocation, requestNumber)
@@ -149,10 +182,18 @@ const allocationDatacap = async () => {
                     issueNumber: issue.number,
                     msigAddress: lastRequest.notaryAddress,
                     address: lastRequest.clientAddress,
-                    actorAddress,
+                    actorAddress: client.addressId ?  client.addressId : client.address,
                     dcAllocationRequested,
                     remainingDatacap: bytesToiB(dataCapRemainingBytes),
-                    lastTwoSigners
+                    lastTwoSigners,
+                    topProvider: client.top_provider || "0",
+                    nDeals: client.dealCount || "0",
+                    previousDcAllocated: client.dcAllocationRequested || "not found",
+                    // info.previousDcAllocated = bytesToiB(apiElement.allowanceArray[apiElement.allowanceArray.length - 1].allowance) || "not found"
+                    nStorageProviders: client.providerCount || "0",
+                    clientName : client.name || "not found",
+                    verifierAddressId : client.verifierAddressId || "not found",
+                    verifierName : client.verifierName || "not found"
                 }
 
                 if (margin <= 0.25) {
@@ -160,7 +201,9 @@ const allocationDatacap = async () => {
 
                     const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, "90TiB", info.msigAddress)
 
-                    console.log("CREATE REQUEST COMMENT")
+                    console.log("CREATE REQUEST COMMENT", "number", info.issueNumber)
+                    // console.log("info", info)
+                    // // console.log("client", client)
                     const commentResult = await octokit.issues.createComment({
                         owner,
                         repo,
@@ -180,12 +223,9 @@ const allocationDatacap = async () => {
 
                 }
 
-                console.log("Info", info);
-
-
             } catch (error) {
                 console.log(`Error, issue n ${issue.number}:`)
-                // console.log(error)
+                console.log(error)
                 console.log(`**Please, check that the datacap for the issue client has been granted**`)
                 continue
             }
@@ -220,14 +260,6 @@ const commentStats = async (list: IssueInfo[]) => {
             if (apiElement === undefined) {
                 throw new Error(`stat comment of issue n ${info.issueNumber} failed because the bot couldn't find the correspondent address in the filplus dashboard`)
             }
-            info.topProvider = apiElement.top_provider || "0"
-            info.nDeals = apiElement.dealCount || "0"
-            info.previousDcAllocated = info.dcAllocationRequested || "not found"
-            // info.previousDcAllocated = bytesToiB(apiElement.allowanceArray[apiElement.allowanceArray.length - 1].allowance) || "not found"
-            info.nStorageProviders = apiElement.providerCount || "0"
-            info.clientName = apiElement.name || "not found"
-            info.verifierAddressId = apiElement.verifierAddressId || "not found"
-            info.verifierName = apiElement.verifierName || "not found"
 
 
 
@@ -306,7 +338,7 @@ const findDatacapRequested = async (issueComments: any): Promise<
 
         let requestList: any[] = []
         for (let i = 0; i < issueComments.data.length; i++) {
-            const parseRequest = await parseReleaseRequest(issueComments.data[i].body)
+            const parseRequest = await parseReleaseRequest(issueComments.data[i].body) //datacap allocation requested
             if (parseRequest.correct) {
                 requestList.push(parseRequest)
             }
