@@ -86,6 +86,10 @@ const allocationDatacap = async () => {
                     console.log(`Issue number ${issue.number} skipped --> bot:readyToSign is present`)
                     continue
                 }
+                if (issue.labels.find((item: any) => item.name === "status:needsDiligence")) {
+                    console.log(`Issue number ${issue.number} skipped -->status:needsDiligence is present`)
+                    continue
+                }
                 if (issue.labels.find((item: any) => item.name === "status:Error")) {
                     console.log(`Issue number ${issue.number} skipped --> status:Error is present`)
                     continue
