@@ -3,7 +3,7 @@ import { config } from "./config";
 import { bytesToiB, anyToBytes } from "./utils";
 import { newAllocationRequestComment, statsComment } from "./comments";
 import VerifyAPI from "@keyko-io/filecoin-verifier-tools/api/api.js";
-import { parseReleaseRequest, parseApprovedRequestWithSignerAddress, parseMultisigNotaryRequest, parseIssue} from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
+import { parseReleaseRequest, parseApprovedRequestWithSignerAddress, parseIssue } from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
 import axios from "axios";
 import { createAppAuth } from "@octokit/auth-app";
 import { EVENT_TYPE, MetricsApiParams } from "./Metrics"
@@ -63,7 +63,7 @@ const allocationDatacap = async () => {
     try {
         console.log("Welcome to the auto-datacap-allocation-bot.")
 
-        const clientsByVerifierRes =await axios({
+        const clientsByVerifierRes = await axios({
             method: "GET",
             url: `${config.filpusApi}/getVerifiedClients`,
             headers: {
@@ -71,16 +71,15 @@ const allocationDatacap = async () => {
             }
         })
 
-        
-        const rawIssues = await octokit.issues.listForRepo({
+        const rawIssues = await octokit.paginate(octokit.issues.listForRepo, {
             owner,
             repo,
             state: 'open'
         })
 
         let issueInfoList: IssueInfo[] = []
-        console.log(`Number of fetched comments: ${rawIssues.data.length}`)
-        for (const issue of rawIssues.data) {
+        console.log(`Number of fetched comments: ${rawIssues.length}`)
+        for (const issue of rawIssues) {
             try {
                 if (issue.labels.find((item: any) => item.name === "bot:readyToSign")) {
                     console.log(`Issue number ${issue.number} skipped --> bot:readyToSign is present`)
@@ -135,8 +134,8 @@ const allocationDatacap = async () => {
 
                 //Check datacap remaining for this address 
 
-                
-                const client = clientsByVerifierRes.data.data.find((item:any) => item.address == lastRequest.clientAddress)
+
+                const client = clientsByVerifierRes.data.data.find((item: any) => item.address == lastRequest.clientAddress)
                 if (!client) {
                     console.log(`Issue number ${issue.number} skipped --> dc not allocated yet`);
                     continue
@@ -151,7 +150,7 @@ const allocationDatacap = async () => {
                 }
 
                 const checkClient = await api.checkClient(actorAddress)
-                const clientAllowanceObj =await axios({
+                const clientAllowanceObj = await axios({
                     method: "GET",
                     url: `${config.filpusApi}/getAllowanceForAddress/${lastRequest.clientAddress}`,
                     headers: {
@@ -160,11 +159,11 @@ const allocationDatacap = async () => {
                 })
                 // console.log("checkClient", checkClient)
                 // console.log("clP", clientAllowanceObj.data.allowance)
-                
+
 
                 const dataCapAllocatedConvert = lastRequest.allocationDatacap.endsWith("B") ? anyToBytes(lastRequest.allocationDatacap) : lastRequest.allocationDatacap
                 const dataCapAllocatedBytes = Number(dataCapAllocatedConvert)
-                const dataCapRemainingBytes : number  = clientAllowanceObj.data.allowance
+                const dataCapRemainingBytes: number = clientAllowanceObj.data.allowance
 
                 // if(checkClient[0]?.datacap != dataCapRemainingBytes){
                 //     console.error(`issue number ${issue.number}, actoraddress ${actorAddress} - address ${lastRequest.clientAddress} values from node (${checkClient[0]?.datacap}) and values from API (${client.allowance} don't match`)
@@ -186,7 +185,7 @@ const allocationDatacap = async () => {
                     issueNumber: issue.number,
                     msigAddress: lastRequest.notaryAddress,
                     address: lastRequest.clientAddress,
-                    actorAddress: client.addressId ?  client.addressId : client.address,
+                    actorAddress: client.addressId ? client.addressId : client.address,
                     dcAllocationRequested,
                     remainingDatacap: bytesToiB(dataCapRemainingBytes),
                     lastTwoSigners,
@@ -195,9 +194,9 @@ const allocationDatacap = async () => {
                     previousDcAllocated: client.dcAllocationRequested || "not found",
                     // info.previousDcAllocated = bytesToiB(apiElement.allowanceArray[apiElement.allowanceArray.length - 1].allowance) || "not found"
                     nStorageProviders: client.providerCount || "0",
-                    clientName : client.name || "not found",
-                    verifierAddressId : client.verifierAddressId || "not found",
-                    verifierName : client.verifierName || "not found"
+                    clientName: client.name || "not found",
+                    verifierAddressId: client.verifierAddressId || "not found",
+                    verifierName: client.verifierName || "not found"
                 }
 
                 if (margin <= 0.25) {
@@ -206,8 +205,8 @@ const allocationDatacap = async () => {
                     const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, "90TiB", info.msigAddress)
 
                     console.log("CREATE REQUEST COMMENT", "number", info.issueNumber)
-                    // console.log("info", info)
-                    // // console.log("client", client)
+                    console.log("info", info)
+                    // console.log("client", client)
                     const commentResult = await octokit.issues.createComment({
                         owner,
                         repo,
