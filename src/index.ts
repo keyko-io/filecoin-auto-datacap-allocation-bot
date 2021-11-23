@@ -200,7 +200,7 @@ const allocationDatacap = async () => {
                 }
 
                 if (margin <= 0.25) {
-                    // if (issue.number === 251) {// ***USED FOR TEST***
+                // if (issue.number === 84) {// ***USED FOR TEST***
 
                     const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, "90TiB", info.msigAddress)
 
@@ -222,8 +222,16 @@ const allocationDatacap = async () => {
                         })
                     }
 
-                    issueInfoList.push(info)
+                    //METRICS
+                    const params: MetricsApiParams = {
+                        name: info.clientName,
+                        clientAddress: info.address,
+                        msigAddress: info.msigAddress,
+                        amount: info.dcAllocationRequested
+                    }
+                    await callMetricsApi(info.issueNumber, EVENT_TYPE.SUBSEQUENT_DC_REQUEST, params) //TEST
 
+                    issueInfoList.push(info)
                 }
 
             } catch (error) {
@@ -266,19 +274,17 @@ const commentStats = async (list: IssueInfo[]) => {
 
 
 
-            const verifiers: any = await octokit.request('GET https://raw.githubusercontent.com/keyko-io/filecoin-verifier-frontend/develop/src/data/verifiers.json')
+            const verifiers: any = await octokit.request(`GET ${config.notariersJsonPath}`)
             const notaries = JSON.parse(verifiers.data).notaries
 
             const addresses = info.lastTwoSigners
-            const githubHandle = addresses.map((addr: any) => notaries.find((notar: any) => notar.ldn_config.signing_address === addr).github_user[0])
+            const githubHandles = addresses.map((addr: any) => notaries.find((notar: any) => notar.ldn_config.signing_address === addr).github_user[0])
 
 
+            console.log("githubHandles", githubHandles)
             const body = statsComment(
                 info.msigAddress,
                 info.address,
-                info.clientName,
-                info.verifierAddressId,
-                info.verifierName,
                 info.topProvider,
                 info.nDeals,
                 info.previousDcAllocated,
@@ -286,26 +292,24 @@ const commentStats = async (list: IssueInfo[]) => {
                 info.nStorageProviders,
                 info.remainingDatacap,
                 info.actorAddress,
-                info.lastTwoSigners,
-                githubHandle
+                githubHandles
             )
 
-            console.log("CREATE STATS COMMENT", info.issueNumber)
-            await octokit.issues.createComment({
-                owner,
-                repo,
-                issue_number: info.issueNumber,
-                body
-            });
+            try {
+                console.log("CREATE STATS COMMENT", info.issueNumber)
+                await octokit.issues.createComment({
+                    owner,
+                    repo,
+                    issue_number: info.issueNumber,
+                    body
+                });
 
-            //METRICS
-            const params: MetricsApiParams = {
-                name: info.clientName,
-                clientAddress: info.address,
-                msigAddress: info.msigAddress,
-                amount: info.dcAllocationRequested
+            } catch (error) {
+                console.error(error)
+                continue
+
             }
-            console.log(callMetricsApi(info.issueNumber, EVENT_TYPE.SUBSEQUENT_DC_REQUEST, params)) //TEST
+
         }
 
 

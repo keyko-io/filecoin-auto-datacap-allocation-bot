@@ -16,9 +16,6 @@ export const newAllocationRequestComment = (
 export const statsComment = (
             msigAddress: string,
             address: string,
-            clientName: string,
-            notaryId: string,
-            notaryName: string,
             topProvider: string,
             nDeals: string,
             previousDcAllocated: string,
@@ -26,17 +23,12 @@ export const statsComment = (
             nStorageProviders: string,
             remainingDatacap: string,
             actorAddress: string,
-            lastTwoSigners:string[],
             githubHandles: string[]
-    //other data
     ): string => {
-    // \r#### Notary address\r\n> ${notaryId}
-    // \r#### Notary name\r\n> ${notaryName}
-    // \r#### Client name\r\n> ${clientName} \r\n
     return `\r## Stats for DataCap Allocation
     \r#### Multisig Notary address\r\n> ${msigAddress}
     \r#### Client address\r\n> ${address} \r\n
-    \r#### Last two approvers\r\n> **${githubHandles[0]}** & **${githubHandles[1]}** \r\n
+    \r#### Last two approvers\r\n> **${githubHandles[0] ? githubHandles[0] : 'not found'}** & **${githubHandles[1] ? githubHandles[1] : 'not found'}** \r\n
     \r#### DataCap allocation requested\n> ${dcAllocationRequested}
     \r#### **[Stats](https://filplus.d.interplanetary.one/clients?filter=${actorAddress} "Go to stats")**
 | Number of deals  | Number of storage providers | Previous DC Allocated  |  Top provider | Remaining DC
