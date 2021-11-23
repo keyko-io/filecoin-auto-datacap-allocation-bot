@@ -15,5 +15,6 @@ export const config = {
     beginPk:process.env.GIT_BEGIN_PK,
     endPk:process.env.GIT_END_PK,
     privateKey: process.env.GIT_PRIVATE_KEY,
-    installationID: process.env.INSTALLATION_ID
+    installationID: process.env.INSTALLATION_ID,
+    notariersJsonPath: process.env.VERIFIERS_JSON_PATH_PROD
 }
