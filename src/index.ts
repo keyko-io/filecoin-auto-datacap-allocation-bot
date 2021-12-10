@@ -70,7 +70,7 @@ const allocationDatacap = async () => {
                 "x-api-key": config.filplusApiKey
             }
         })
-
+       
         const rawIssues = await octokit.paginate(octokit.issues.listForRepo, {
             owner,
             repo,
@@ -95,10 +95,10 @@ const allocationDatacap = async () => {
                 }
 
                 //get all comments of a issue
-                const issueComments = await octokit.rest.issues.listComments({
+                const issueComments = await octokit.paginate( octokit.rest.issues.listComments, {
                     owner,
                     repo,
-                    issue_number: issue.number,
+                    issue_number: issue.number
                 });
 
                 //parse weeklhy dc in issue
@@ -179,8 +179,7 @@ const allocationDatacap = async () => {
 
                 // retrieve last 2 signers to put in stat comment
                 const lastTwoSigners: string[] = retrieveLastTwoSigners(issueComments)
-
-
+                console.log("issue.number",issue.number,"lastTwoSigners",lastTwoSigners)
                 const info: IssueInfo = {
                     issueNumber: issue.number,
                     msigAddress: lastRequest.notaryAddress,
@@ -200,7 +199,7 @@ const allocationDatacap = async () => {
                 }
 
                 if (margin <= 0.25) {
-                // if (issue.number === 84) {// ***USED FOR TEST***
+                 // if (issue.number === 84) {// ***USED FOR TEST***
 
                     const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, "90TiB", info.msigAddress)
 
@@ -344,8 +343,8 @@ const findDatacapRequested = async (issueComments: any): Promise<
     try {
 
         let requestList: any[] = []
-        for (let i = 0; i < issueComments.data.length; i++) {
-            const parseRequest = await parseReleaseRequest(issueComments.data[i].body) //datacap allocation requested
+        for (let i = 0; i < issueComments.length; i++) {
+            const parseRequest = await parseReleaseRequest(issueComments[i].body) //datacap allocation requested
             if (parseRequest.correct) {
                 requestList.push(parseRequest)
             }
@@ -360,13 +359,16 @@ const retrieveLastTwoSigners = (issueComments: any): string[] => {
     try {
 
         let requestList: string[] = []
-        for (let i = 0; i < issueComments.data.length; i++) {
-            const parseRequest = parseApprovedRequestWithSignerAddress(issueComments.data[i].body)
+        for (let i = issueComments.length-1; i>= 0; i--) {
+            if(requestList.length === 2 ) break
+            const parseRequest = parseApprovedRequestWithSignerAddress(issueComments[i].body)
+            if(parseRequest.approvedMessage){
+            }
             if (parseRequest.correct) {
                 requestList.push(parseRequest.signerAddress)
             }
         }
-        return requestList.slice(-2)
+        return requestList
     } catch (error) {
         console.log(error)
     }
