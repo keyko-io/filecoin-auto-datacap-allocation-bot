@@ -11,6 +11,7 @@ const { callMetricsApi } = require('@keyko-io/filecoin-verifier-tools/metrics/me
 
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
+const PHASE = "Subsequent Allocation"
 
 type IssueInfo = {
     issueNumber: number,
@@ -82,15 +83,15 @@ const allocationDatacap = async () => {
         for (const issue of rawIssues) {
             try {
                 if (issue.labels.find((item: any) => item.name === "bot:readyToSign")) {
-                    console.log(`Issue number ${issue.number} skipped --> bot:readyToSign is present`)
+                    console.log(`[${PHASE}] Issue number ${issue.number} skipped --> bot:readyToSign is present`)
                     continue
                 }
                 if (issue.labels.find((item: any) => item.name === "status:needsDiligence")) {
-                    console.log(`Issue number ${issue.number} skipped -->status:needsDiligence is present`)
+                    console.log(`[${PHASE}] Issue number ${issue.number} skipped -->status:needsDiligence is present`)
                     continue
                 }
                 if (issue.labels.find((item: any) => item.name === "status:Error")) {
-                    console.log(`Issue number ${issue.number} skipped --> status:Error is present`)
+                    console.log(`[${PHASE}] Issue number ${issue.number} skipped --> status:Error is present`)
                     continue
                 }
 
@@ -116,19 +117,19 @@ const allocationDatacap = async () => {
                 const requestNumber = requestList.length
 
                 if (lastRequest === undefined) {
-                    console.log(`Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`)
+                    console.log(`[${PHASE}] Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`)
                     continue
                 }
                 if (!lastRequest.allocationDatacap && !lastRequest.clientAddress) {
-                    console.log(`Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`)
+                    console.log(`[${PHASE}] Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`)
                     continue
                 }
                 if (!lastRequest.clientAddress) {
-                    console.log(`Issue number ${issue.number} skipped --> clientAddressnot found after parsing the comments`)
+                    console.log(`[${PHASE}] Issue number ${issue.number} skipped --> clientAddressnot found after parsing the comments`)
                     continue
                 }
                 if (!lastRequest.allocationDatacap) {
-                    console.log(`Issue number ${issue.number} skipped --> datacapAllocated not found after parsing the comments`)
+                    console.log(`[${PHASE}] Issue number ${issue.number} skipped --> datacapAllocated not found after parsing the comments`)
                     continue
                 }
 
@@ -137,7 +138,7 @@ const allocationDatacap = async () => {
 
                 const client = clientsByVerifierRes.data.data.find((item: any) => item.address == lastRequest.clientAddress)
                 if (!client) {
-                    console.log(`Issue number ${issue.number} skipped --> dc not allocated yet`);
+                    console.log(`[${PHASE}] Issue number ${issue.number} skipped --> dc not allocated yet`);
                     continue
                 }
 
@@ -172,7 +173,7 @@ const allocationDatacap = async () => {
 
                 // console.log("dataCapRemaining, dataCapAllocated", "checkClient" ,bytesToiB(dataCapRemainingBytes) ,bytesToiB(dataCapAllocatedBytes), checkClient[0]?.datacap)
                 const margin = dataCapRemainingBytes / dataCapAllocatedBytes
-                console.log(`Issue n ${issue.number} margin:`, margin)
+                console.log(`[${PHASE}] Issue n ${issue.number} margin:`, margin)
 
 
                 const dcAllocationRequested = calculateAllocationToRequest(allocation, requestNumber)
@@ -203,7 +204,7 @@ const allocationDatacap = async () => {
 
                     const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, "90TiB", info.msigAddress)
 
-                    console.log("CREATE REQUEST COMMENT", "number", info.issueNumber)
+                    console.log(`[${PHASE}] CREATE REQUEST COMMENT issue number ${info.issueNumber}`)
                     // console.log("info", info)
                     // console.log("client", client)
                     const commentResult = await octokit.issues.createComment({
@@ -229,12 +230,12 @@ const allocationDatacap = async () => {
                         amount: info.dcAllocationRequested
                     }
                     await callMetricsApi(info.issueNumber, EVENT_TYPE.SUBSEQUENT_DC_REQUEST, params) //TEST
-
+                    console.log(`[${PHASE}] issue n ${issue.number}, posted subsequent allocation comment.`)
                     issueInfoList.push(info)
                 }
 
             } catch (error) {
-                console.log(`Error, issue n ${issue.number}: ${error}`)
+                console.log(`[${PHASE}] Error, issue n ${issue.number}: ${error}`)
                 console.log(`**Please, check that the datacap for the issue client has been granted**`)
                 continue
             }
@@ -265,7 +266,7 @@ const commentStats = async (list: IssueInfo[]) => {
             // const apiElement = clients.find((item: any) => item.address === "f1ztll3caq5m3qivovzipywtzqc75ebgpz4vieyiq")
             const apiElement = clients.find((item: any) => item.address === info.address)
             if (apiElement === undefined) {
-                throw new Error(`Error, stat comment of issue n ${info.issueNumber} failed because the bot couldn't find the correspondent address in the filplus dashboard`)
+                throw new Error(`[${PHASE}] Error, stat comment of issue n ${info.issueNumber} failed because the bot couldn't find the correspondent address in the filplus dashboard`)
             }
 
 
@@ -293,7 +294,7 @@ const commentStats = async (list: IssueInfo[]) => {
 
             try {
                 // console.log("CREATE STATS COMMENT", info.issueNumber)
-                console.log(`CREATE STATS COMMENT, issue n ${info.issueNumber}`)
+                console.log(`[${PHASE}] CREATE STATS COMMENT, issue n ${info.issueNumber}`)
                 await octokit.issues.createComment({
                     owner,
                     repo,
@@ -368,7 +369,7 @@ const retrieveLastTwoSigners = (issueComments: any, issueNumber: any): string[] 
         }
         return requestList
     } catch (error) {
-        console.log(`Error, issue n ${issueNumber}, error retrieving the last 2 signers. ${error}`)
+        console.log(`[${PHASE}] Error, issue n ${issueNumber}, error retrieving the last 2 signers. ${error}`)
     }
 }
 
