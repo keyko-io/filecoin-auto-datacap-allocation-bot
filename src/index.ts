@@ -149,7 +149,7 @@ const allocationDatacap = async () => {
                     actorAddress = await api.cachedActorAddress(lastRequest.clientAddress)
                 }
 
-                const checkClient = await api.checkClient(actorAddress)
+                // const checkClient = aswait api.checkClient(actorAddress)
                 const clientAllowanceObj = await axios({
                     method: "GET",
                     url: `${config.filpusApi}/getAllowanceForAddress/${lastRequest.clientAddress}`,
@@ -178,8 +178,8 @@ const allocationDatacap = async () => {
                 const dcAllocationRequested = calculateAllocationToRequest(allocation, requestNumber)
 
                 // retrieve last 2 signers to put in stat comment
-                const lastTwoSigners: string[] = retrieveLastTwoSigners(issueComments)
-                console.log("issue.number",issue.number,"lastTwoSigners",lastTwoSigners)
+                const lastTwoSigners: string[] = retrieveLastTwoSigners(issueComments, issue.number)
+                // console.log("issue.number",issue.number,"lastTwoSigners",lastTwoSigners)
                 const info: IssueInfo = {
                     issueNumber: issue.number,
                     msigAddress: lastRequest.notaryAddress,
@@ -204,7 +204,7 @@ const allocationDatacap = async () => {
                     const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, "90TiB", info.msigAddress)
 
                     console.log("CREATE REQUEST COMMENT", "number", info.issueNumber)
-                    console.log("info", info)
+                    // console.log("info", info)
                     // console.log("client", client)
                     const commentResult = await octokit.issues.createComment({
                         owner,
@@ -234,8 +234,7 @@ const allocationDatacap = async () => {
                 }
 
             } catch (error) {
-                console.log(`Error, issue n ${issue.number}:`)
-                console.log(error)
+                console.log(`Error, issue n ${issue.number}: ${error}`)
                 console.log(`**Please, check that the datacap for the issue client has been granted**`)
                 continue
             }
@@ -263,12 +262,10 @@ const commentStats = async (list: IssueInfo[]) => {
 
         //get stats & comment
         for (const info of list) {
-
-
             // const apiElement = clients.find((item: any) => item.address === "f1ztll3caq5m3qivovzipywtzqc75ebgpz4vieyiq")
             const apiElement = clients.find((item: any) => item.address === info.address)
             if (apiElement === undefined) {
-                throw new Error(`stat comment of issue n ${info.issueNumber} failed because the bot couldn't find the correspondent address in the filplus dashboard`)
+                throw new Error(`Error, stat comment of issue n ${info.issueNumber} failed because the bot couldn't find the correspondent address in the filplus dashboard`)
             }
 
 
@@ -280,7 +277,7 @@ const commentStats = async (list: IssueInfo[]) => {
             const githubHandles = addresses.map((addr: any) => notaries.find((notar: any) => notar.ldn_config.signing_address === addr).github_user[0])
 
 
-            console.log("githubHandles", githubHandles)
+            // console.log("githubHandles", githubHandles)
             const body = statsComment(
                 info.msigAddress,
                 info.address,
@@ -295,7 +292,8 @@ const commentStats = async (list: IssueInfo[]) => {
             )
 
             try {
-                console.log("CREATE STATS COMMENT", info.issueNumber)
+                // console.log("CREATE STATS COMMENT", info.issueNumber)
+                console.log(`CREATE STATS COMMENT, issue n ${info.issueNumber}`)
                 await octokit.issues.createComment({
                     owner,
                     repo,
@@ -355,7 +353,7 @@ const findDatacapRequested = async (issueComments: any): Promise<
     }
 }
 
-const retrieveLastTwoSigners = (issueComments: any): string[] => {
+const retrieveLastTwoSigners = (issueComments: any, issueNumber: any): string[] => {
     try {
 
         let requestList: string[] = []
@@ -370,7 +368,7 @@ const retrieveLastTwoSigners = (issueComments: any): string[] => {
         }
         return requestList
     } catch (error) {
-        console.log(error)
+        console.log(`Error, issue n ${issueNumber}, error retrieving the last 2 signers. ${error}`)
     }
 }
 
