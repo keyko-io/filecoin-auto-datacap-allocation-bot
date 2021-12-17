@@ -62,7 +62,7 @@ const octokit = new Octokit({
 
 const allocationDatacap = async () => {
     try {
-        console.log("Welcome to the auto-datacap-allocation-bot.")
+        console.log(`[${PHASE}] Issue number 0 Subsequent-Allocation-Bot started.`)
 
         const clientsByVerifierRes = await axios({
             method: "GET",
@@ -71,7 +71,7 @@ const allocationDatacap = async () => {
                 "x-api-key": config.filplusApiKey
             }
         })
-       
+
         const rawIssues = await octokit.paginate(octokit.issues.listForRepo, {
             owner,
             repo,
@@ -96,7 +96,7 @@ const allocationDatacap = async () => {
                 }
 
                 //get all comments of a issue
-                const issueComments = await octokit.paginate( octokit.rest.issues.listComments, {
+                const issueComments = await octokit.paginate(octokit.rest.issues.listComments, {
                     owner,
                     repo,
                     issue_number: issue.number
@@ -189,9 +189,9 @@ const allocationDatacap = async () => {
                     dcAllocationRequested,
                     remainingDatacap: bytesToiB(dataCapRemainingBytes),
                     lastTwoSigners,
-                    topProvider: client.top_provider || "0",
+                    topProvider: client.topProvider || "0",
                     nDeals: client.dealCount || "0",
-                    previousDcAllocated: client.dcAllocationRequested || "not found",
+                    previousDcAllocated: lastRequest.allocationDatacap || "not found",
                     // info.previousDcAllocated = bytesToiB(apiElement.allowanceArray[apiElement.allowanceArray.length - 1].allowance) || "not found"
                     nStorageProviders: client.providerCount || "0",
                     clientName: client.name || "not found",
@@ -200,7 +200,7 @@ const allocationDatacap = async () => {
                 }
 
                 if (margin <= 0.25) {
-                 // if (issue.number === 84) {// ***USED FOR TEST***
+                    // if (issue.number === 84) {// ***USED FOR TEST***
 
                     const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, "90TiB", info.msigAddress)
 
@@ -241,7 +241,9 @@ const allocationDatacap = async () => {
             }
         }
         await commentStats(issueInfoList)
-        console.log(`Auto-datacap-allocation-bot ended. Number of issues commented: ${issueInfoList.length}`)
+        console.log(`[${PHASE}] Issue number 0 Subsequent-Allocation-Bot ended. Number of issues commented: ${issueInfoList.length}`)
+        console.log(`[${PHASE}] Issue number 0 Subsequent-Allocation-Bot - issues commented: ${issueInfoList.map((info: any) => info.issueNumber)}`)
+
     } catch (error) {
         console.error("error listing the issues, generic error in the bot")
         console.error(error)
@@ -358,10 +360,10 @@ const retrieveLastTwoSigners = (issueComments: any, issueNumber: any): string[] 
     try {
 
         let requestList: string[] = []
-        for (let i = issueComments.length-1; i>= 0; i--) {
-            if(requestList.length === 2 ) break
+        for (let i = issueComments.length - 1; i >= 0; i--) {
+            if (requestList.length === 2) break
             const parseRequest = parseApprovedRequestWithSignerAddress(issueComments[i].body)
-            if(parseRequest.approvedMessage){
+            if (parseRequest.approvedMessage) {
             }
             if (parseRequest.correct) {
                 requestList.push(parseRequest.signerAddress)
