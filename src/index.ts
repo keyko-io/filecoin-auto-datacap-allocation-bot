@@ -189,9 +189,9 @@ const allocationDatacap = async () => {
                     dcAllocationRequested,
                     remainingDatacap: bytesToiB(dataCapRemainingBytes),
                     lastTwoSigners,
-                    topProvider: client.top_provider || "0",
+                    topProvider: client.topProvider || "0",
                     nDeals: client.dealCount || "0",
-                    previousDcAllocated: client.dcAllocationRequested || "not found",
+                    previousDcAllocated: lastRequest.allocationDatacap || "not found",
                     // info.previousDcAllocated = bytesToiB(apiElement.allowanceArray[apiElement.allowanceArray.length - 1].allowance) || "not found"
                     nStorageProviders: client.providerCount || "0",
                     clientName: client.name || "not found",
