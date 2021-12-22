@@ -220,6 +220,11 @@ const allocationDatacap = async () => {
                             issue_number: info.issueNumber,
                             labels: ['bot:readyToSign']
                         })
+                        await octokit.issues.removeAllLabels({
+                            owner,
+                            repo,
+                            issue_number: info.issueNumber
+                        })
                     }
 
                     //METRICS
