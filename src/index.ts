@@ -3,7 +3,7 @@ import { config } from "./config";
 import { bytesToiB, anyToBytes } from "./utils";
 import { newAllocationRequestComment, statsComment } from "./comments";
 import VerifyAPI from "@keyko-io/filecoin-verifier-tools/api/api.js";
-import { parseReleaseRequest, parseApprovedRequestWithSignerAddress, parseIssue } from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
+import { parseReleaseRequest, parseApprovedRequestWithSignerAddress, parseIssue, parseMultisigReconnectComment } from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
 import axios from "axios";
 import { createAppAuth } from "@octokit/auth-app";
 import { EVENT_TYPE, MetricsApiParams } from "./Metrics"
@@ -45,8 +45,6 @@ const formatPK = () => {
     return formatted;
 }
 
-
-
 const octokit = new Octokit({
     authStrategy: createAppAuth,
     auth: {
@@ -59,11 +57,42 @@ const octokit = new Octokit({
     }
 });
 
+const checkLabels = (issue: any) => {
+    if (issue.labels.find((item: any) => item.name === "bot:readyToSign")) {
+        console.log(`[${PHASE}] Issue number ${issue.number} skipped --> bot:readyToSign is present`)
+        return false
+    }
+    if (issue.labels.find((item: any) => item.name === "status:needsDiligence")) {
+        console.log(`[${PHASE}] Issue number ${issue.number} skipped -->status:needsDiligence is present`)
+        return false
+    }
+    if (issue.labels.find((item: any) => item.name === "status:Error")) {
+        console.log(`[${PHASE}] Issue number ${issue.number} skipped --> status:Error is present`)
+        return false
+    }
+}
 
-const allocationDatacap = async () => {
+const checkLastRequest = (lastRequest: any, issue: any) => {
+    if (lastRequest === undefined) {
+        console.log(`[${PHASE}] Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`)
+        return false
+    }
+    if (!lastRequest.allocationDatacap && !lastRequest.clientAddress) {
+        console.log(`[${PHASE}] Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`)
+        return false
+    }
+    if (!lastRequest.clientAddress) {
+        console.log(`[${PHASE}] Issue number ${issue.number} skipped --> clientAddressnot found after parsing the comments`)
+        return false
+    }
+    if (!lastRequest.allocationDatacap) {
+        console.log(`[${PHASE}] Issue number ${issue.number} skipped --> datacapAllocated not found after parsing the comments`)
+        return false
+    }
+}
+
+const getClientFromApi = async (clientAddress: any, issue: any) => {
     try {
-        console.log(`[${PHASE}] Issue number 0 Subsequent-Allocation-Bot started.`)
-
         const clientsByVerifierRes = await axios({
             method: "GET",
             url: `${config.filpusApi}/getVerifiedClients`,
@@ -72,6 +101,33 @@ const allocationDatacap = async () => {
             }
         })
 
+        const client = clientsByVerifierRes.data.data.find((item: any) => item.address == clientAddress)
+        if (!client) {
+            console.log(`[${PHASE}] Issue number ${issue.number} skipped --> dc not allocated yet`);
+            return false
+        }
+
+        const clientAllowanceObj = await axios({
+            method: "GET",
+            url: `${config.filpusApi}/getAllowanceForAddress/${clientAddress}`,
+            headers: {
+                "x-api-key": config.filplusApiKey
+            }
+        })
+
+        return {
+            client,
+            clientAllowanceObj
+        }
+    } catch (error) {
+        console.error(`[${PHASE}] Issue number ${issue.number} Error --> ${error}`);
+    }
+}
+
+const allocationDatacap = async () => {
+    try {
+        console.log(`[${PHASE}] Issue number 0 Subsequent-Allocation-Bot started.`)
+
         const rawIssues = await octokit.paginate(octokit.issues.listForRepo, {
             owner,
             repo,
@@ -79,21 +135,9 @@ const allocationDatacap = async () => {
         })
 
         let issueInfoList: IssueInfo[] = []
-        console.log(`Number of fetched comments: ${rawIssues.length}`)
+        console.log(`Number of fetched issues: ${rawIssues.length}`)
         for (const issue of rawIssues) {
             try {
-                if (issue.labels.find((item: any) => item.name === "bot:readyToSign")) {
-                    console.log(`[${PHASE}] Issue number ${issue.number} skipped --> bot:readyToSign is present`)
-                    continue
-                }
-                if (issue.labels.find((item: any) => item.name === "status:needsDiligence")) {
-                    console.log(`[${PHASE}] Issue number ${issue.number} skipped -->status:needsDiligence is present`)
-                    continue
-                }
-                if (issue.labels.find((item: any) => item.name === "status:Error")) {
-                    console.log(`[${PHASE}] Issue number ${issue.number} skipped --> status:Error is present`)
-                    continue
-                }
 
                 //get all comments of a issue
                 const issueComments = await octokit.paginate(octokit.rest.issues.listComments, {
@@ -102,13 +146,26 @@ const allocationDatacap = async () => {
                     issue_number: issue.number
                 });
 
-                //parse weeklhy dc in issue
+                //start the flow to retrieve a lost issue
+                if (issue.labels.find((item: any) => item.name === "bot:reconnectedIssue")) {
+                    console.log(`[${PHASE}] Issue number ${issue.number} starting flow for retrieved issue --> bot:reconnectedIssue is present`)
+
+                    const reconnectFlow = reconnectIssueFlow(issue, issueComments, issueInfoList)
+                    if (!reconnectFlow) {
+                        console.log(`[${PHASE}] Issue number ${issue.number} client not found - error`)
+                        continue
+                    }
+                    console.log("issueInfoList", issueInfoList)
+                    continue
+                }
+
+                if (!checkLabels(issue)) continue
+
                 // the amount to take into account is expected weekly usage rate or 5% of total dc requested (the lower)
                 // in this case I compare the entire weekly amount and 10% of total datacap requested
                 const weeklyDcAllocationBytes = anyToBytes(parseIssue(issue.body).dataCapWeeklyAllocation.toString())
                 const tenPercentAllocationBytes = anyToBytes(parseIssue(issue.body).datacapRequested.toString()) * 0.1
-
-
+                // needed for the allocation comment
                 const allocation = weeklyDcAllocationBytes <= tenPercentAllocationBytes ? weeklyDcAllocationBytes : tenPercentAllocationBytes
 
                 //Parse dc requested msig notary address and  client address
@@ -116,62 +173,15 @@ const allocationDatacap = async () => {
                 const lastRequest = requestList[requestList.length - 1]
                 const requestNumber = requestList.length
 
-                if (lastRequest === undefined) {
-                    console.log(`[${PHASE}] Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`)
-                    continue
-                }
-                if (!lastRequest.allocationDatacap && !lastRequest.clientAddress) {
-                    console.log(`[${PHASE}] Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`)
-                    continue
-                }
-                if (!lastRequest.clientAddress) {
-                    console.log(`[${PHASE}] Issue number ${issue.number} skipped --> clientAddressnot found after parsing the comments`)
-                    continue
-                }
-                if (!lastRequest.allocationDatacap) {
-                    console.log(`[${PHASE}] Issue number ${issue.number} skipped --> datacapAllocated not found after parsing the comments`)
-                    continue
-                }
+                if (!checkLastRequest) continue
 
-                //Check datacap remaining for this address 
-
-
-                const client = clientsByVerifierRes.data.data.find((item: any) => item.address == lastRequest.clientAddress)
-                if (!client) {
-                    console.log(`[${PHASE}] Issue number ${issue.number} skipped --> dc not allocated yet`);
-                    continue
-                }
-
-
-                let actorAddress: any = ""
-                if (lastRequest.clientAddress.startsWith("f1")) {
-                    actorAddress = await api.actorAddress(lastRequest.clientAddress)
-                } else {
-                    actorAddress = await api.cachedActorAddress(lastRequest.clientAddress)
-                }
-
-                // const checkClient = aswait api.checkClient(actorAddress)
-                const clientAllowanceObj = await axios({
-                    method: "GET",
-                    url: `${config.filpusApi}/getAllowanceForAddress/${lastRequest.clientAddress}`,
-                    headers: {
-                        "x-api-key": config.filplusApiKey
-                    }
-                })
-                // console.log("checkClient", checkClient)
-                // console.log("clP", clientAllowanceObj.data.allowance)
-
+                const retrieveClient = await getClientFromApi(lastRequest.clientAddress, issue)
+                if (!retrieveClient) continue
 
                 const dataCapAllocatedConvert = lastRequest.allocationDatacap.endsWith("B") ? anyToBytes(lastRequest.allocationDatacap) : lastRequest.allocationDatacap
                 const dataCapAllocatedBytes = Number(dataCapAllocatedConvert)
-                const dataCapRemainingBytes: number = clientAllowanceObj.data.allowance
+                const dataCapRemainingBytes: number = retrieveClient.clientAllowanceObj.data.allowance
 
-                // if(checkClient[0]?.datacap != dataCapRemainingBytes){
-                //     console.error(`issue number ${issue.number}, actoraddress ${actorAddress} - address ${lastRequest.clientAddress} values from node (${checkClient[0]?.datacap}) and values from API (${client.allowance} don't match`)
-                //     continue
-                // }
-
-                // console.log("dataCapRemaining, dataCapAllocated", "checkClient" ,bytesToiB(dataCapRemainingBytes) ,bytesToiB(dataCapAllocatedBytes), checkClient[0]?.datacap)
                 const margin = dataCapRemainingBytes / dataCapAllocatedBytes
                 console.log(`[${PHASE}] Issue n ${issue.number} margin:`, margin)
 
@@ -185,57 +195,23 @@ const allocationDatacap = async () => {
                     issueNumber: issue.number,
                     msigAddress: lastRequest.notaryAddress,
                     address: lastRequest.clientAddress,
-                    actorAddress: client.addressId ? client.addressId : client.address,
+                    actorAddress: retrieveClient.client.addressId ? retrieveClient.client.addressId : retrieveClient.client.address,
                     dcAllocationRequested,
                     remainingDatacap: bytesToiB(dataCapRemainingBytes),
                     lastTwoSigners,
-                    topProvider: client.topProvider || "0",
-                    nDeals: client.dealCount || "0",
+                    topProvider: retrieveClient.client.topProvider || "0",
+                    nDeals: retrieveClient.client.dealCount || "0",
                     previousDcAllocated: lastRequest.allocationDatacap || "not found",
                     // info.previousDcAllocated = bytesToiB(apiElement.allowanceArray[apiElement.allowanceArray.length - 1].allowance) || "not found"
-                    nStorageProviders: client.providerCount || "0",
-                    clientName: client.name || "not found",
-                    verifierAddressId: client.verifierAddressId || "not found",
-                    verifierName: client.verifierName || "not found"
+                    nStorageProviders: retrieveClient.client.providerCount || "0",
+                    clientName: retrieveClient.client.name || "not found",
+                    verifierAddressId: retrieveClient.client.verifierAddressId || "not found",
+                    verifierName: retrieveClient.client.verifierName || "not found"
                 }
 
                 if (margin <= 0.25) {
                     // if (issue.number === 84) {// ***USED FOR TEST***
-
-                    const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, "90TiB", info.msigAddress)
-
-                    console.log(`[${PHASE}] CREATE REQUEST COMMENT issue number ${info.issueNumber}`)
-                    // console.log("info", info)
-                    // console.log("client", client)
-                    const commentResult = await octokit.issues.createComment({
-                        owner,
-                        repo,
-                        issue_number: info.issueNumber,
-                        body
-                    });
-                    if (commentResult.status === 201) {
-                        await octokit.issues.addLabels({
-                            owner,
-                            repo,
-                            issue_number: info.issueNumber,
-                            labels: ['bot:readyToSign']
-                        })
-                        await octokit.issues.removeAllLabels({
-                            owner,
-                            repo,
-                            issue_number: info.issueNumber
-                        })
-                    }
-
-                    //METRICS
-                    const params: MetricsApiParams = {
-                        name: info.clientName,
-                        clientAddress: info.address,
-                        msigAddress: info.msigAddress,
-                        amount: info.dcAllocationRequested
-                    }
-                    await callMetricsApi(info.issueNumber, EVENT_TYPE.SUBSEQUENT_DC_REQUEST, params) //TEST
-                    console.log(`[${PHASE}] issue n ${issue.number}, posted subsequent allocation comment.`)
+                    // createAllocationRequestComment(info)
                     issueInfoList.push(info)
                 }
 
@@ -325,8 +301,6 @@ const commentStats = async (list: IssueInfo[]) => {
 
 }
 
-
-
 const calculateAllocationToRequest = (allocationDatacap: number, requestNumber: number) => {
 
     // if it is the 2nd request (requestNumber = 1 ), assign 100% of the amount in the issue
@@ -379,5 +353,97 @@ const retrieveLastTwoSigners = (issueComments: any, issueNumber: any): string[] 
         console.log(`[${PHASE}] Error, issue n ${issueNumber}, error retrieving the last 2 signers. ${error}`)
     }
 }
+
+const reconnectIssueFlow = async (issue: any, issueComments: any[], issueInfoList: any[]) => {
+    try {
+        // TODO get client address
+        const reconnComment = issueComments.find((comment: any) => parseMultisigReconnectComment(comment.body).correct).body
+        const clientAddress = parseMultisigReconnectComment(reconnComment).clientAddress
+        console.log("clientAddress",clientAddress)
+        const msigAddress = parseMultisigReconnectComment(reconnComment).msigAddress
+        console.log("msigAddress",msigAddress)
+
+        //get client
+        const retrieveClient = await getClientFromApi(clientAddress, issue)
+        if (!retrieveClient) return false
+        console.log("retrieveClient.client", retrieveClient.client)
+        const datacapRemaining = retrieveClient.client.allowance
+
+        const previousDcAllocated = retrieveClient.client.allowanceArray[retrieveClient.client.allowanceArray.length - 1].allowance
+        const initialAllowance = retrieveClient.client.initialAllowance
+
+        // calculate dc to request
+        const requestNumber = retrieveClient.client.allowanceArray.length
+        const datacapToRequest = calculateAllocationToRequest(initialAllowance * 2, requestNumber)
+        const lastTwoSigners: string[] = retrieveLastTwoSigners(issueComments, issue.number)
+
+        const info: IssueInfo = {
+            issueNumber: issue.number,
+            msigAddress,
+            address: clientAddress,
+            actorAddress: clientAddress,
+            dcAllocationRequested: datacapToRequest,
+            remainingDatacap: datacapRemaining,
+            lastTwoSigners,
+            topProvider: retrieveClient.client.topProvider || "0",
+            nDeals: retrieveClient.client.dealCount || "0",
+            previousDcAllocated: bytesToiB(previousDcAllocated),
+            nStorageProviders: retrieveClient.client.providerCount || "0",
+            clientName: retrieveClient.client.name || "not found",
+            verifierAddressId: retrieveClient.client.verifierAddressId || "not found",
+            verifierName: retrieveClient.client.verifierName || "not found"
+        }
+        console.log("INFO", info)
+
+        const margin = datacapRemaining / previousDcAllocated
+        console.log("MARGIN", margin)
+        if (margin <= 0.25) {
+            console.log("CREATE RECONNECT COMMENT")
+            createAllocationRequestComment(info)
+            issueInfoList.push(info)
+        }
+    } catch (error) {
+        console.log(error)
+    }
+
+}
+
+const createAllocationRequestComment = async (info: any) => {
+    const body = newAllocationRequestComment(info.address, info.dcAllocationRequested, "90TiB", info.msigAddress)
+
+    console.log(`[${PHASE}] CREATE REQUEST COMMENT issue number ${info.issueNumber}`)
+    const commentResult = await octokit.issues.createComment({
+        owner,
+        repo,
+        issue_number: info.issueNumber,
+        body
+    });
+    if (commentResult.status === 201) {
+        await octokit.issues.addLabels({
+            owner,
+            repo,
+            issue_number: info.issueNumber,
+            labels: ['bot:readyToSign']
+        })
+        await octokit.issues.removeLabel({
+            owner,
+            repo,
+            issue_number: info.issueNumber,
+            name: "state:Granted"
+        })
+    }
+
+    //METRICS
+    const params: MetricsApiParams = {
+        name: info.clientName,
+        clientAddress: info.address,
+        msigAddress: info.msigAddress,
+        amount: info.dcAllocationRequested
+    }
+    await callMetricsApi(info.issueNumber, EVENT_TYPE.SUBSEQUENT_DC_REQUEST, params)
+    console.log(`[${PHASE}] issue n ${info.issueNumber}, posted subsequent allocation comment.`)
+}
+
+
 
 allocationDatacap()
