@@ -392,11 +392,6 @@ const calculateAllocationToRequest = (
   allocationDatacap: number,
   requestNumber: number
 ) => {
-  // if it is the 2nd request (requestNumber = 1 ), assign 100% of the amount in the issue
-  // from the 3rd request on, assign 200% of the amount in the issue
-
-  // const dcAmountBytes = requestNumber == 1 ? allocationDatacap :
-  //     requestNumber >= 2 ? allocationDatacap * 2 : allocationDatacap / 2
 
   let dcAmountBytes = 0;
   console.log("req number:", requestNumber)
@@ -404,18 +399,18 @@ const calculateAllocationToRequest = (
     case 0: //1nd req (won't never happen here :) - 50%
       dcAmountBytes = allocationDatacap / 2;
       break;
-    case 1: //2nd req - 100%
+    case 1: //2nd req - 100% of the amount in the issue
       dcAmountBytes = allocationDatacap;
       break;
-    case 2: //3rd req - 200%
+    case 2: //3rd req - 200% of the amount in the issue
       dcAmountBytes = allocationDatacap * 2;
       break;
-    case 3: //4th req - 400%
+    case 3: //4th req - 400% of the amount in the issue
       dcAmountBytes = allocationDatacap * 4;
       break;
 
     default:
-      //5th req on - 800%
+      //5th req on - 800% of the amount in the issue
       dcAmountBytes = allocationDatacap * 8;
       break;
   }
