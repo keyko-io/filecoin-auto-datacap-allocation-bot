@@ -17,7 +17,7 @@ const {
 
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
-const PHASE = "Subsequent Allocation";
+const PHASE = `Subsequent Allocation ${process.env.ENVIRONMENT}`;
 
 type IssueInfo = {
   issueNumber: number;
@@ -175,14 +175,14 @@ const allocationDatacap = async () => {
           continue;
         }
 
-        let actorAddress: any = "";
-        if (lastRequest.clientAddress.startsWith("f1")) {
-          actorAddress = await api.actorAddress(lastRequest.clientAddress);
-        } else {
-          actorAddress = await api.cachedActorAddress(
-            lastRequest.clientAddress
-          );
-        }
+        // let actorAddress: any = "";
+        // if (lastRequest.clientAddress.startsWith("f1")) {
+        //   actorAddress = await api.actorAddress(lastRequest.clientAddress);
+        // } else {
+        //   actorAddress = await api.cachedActorAddress(
+        //     lastRequest.clientAddress
+        //   );
+        // }
 
         // const checkClient = aswait api.checkClient(actorAddress)
         const clientAllowanceObj = await axios({
@@ -242,7 +242,7 @@ const allocationDatacap = async () => {
         };
 
         if (margin <= 0.25) {
-          // if (issue.number === 84) {// ***USED FOR TEST***
+        // if (issue.number === 84) {// ***USED FOR TEST***
 
           const body = newAllocationRequestComment(
             info.address,
