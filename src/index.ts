@@ -11,13 +11,14 @@ import {
 import axios from "axios";
 import { createAppAuth } from "@octokit/auth-app";
 import { EVENT_TYPE, MetricsApiParams } from "./Metrics";
+import { logGeneral, logWarn, logDebug, logError} from './logger/ConsoleLogger'
 const {
   callMetricsApi,
 } = require("@keyko-io/filecoin-verifier-tools/metrics/metrics");
 
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
-const PHASE = `Subsequent Allocation ${process.env.ENVIRONMENT}`;
+// const PHASE = `Subsequent Allocation`;
 
 type IssueInfo = {
   issueNumber: number;
@@ -66,7 +67,7 @@ const octokit = new Octokit({
 
 const allocationDatacap = async () => {
   try {
-    console.log(`[${PHASE}] Issue number 0 Subsequent-Allocation-Bot started.`);
+    logGeneral(`Issue number 0 Subsequent-Allocation-Bot started.`);
 
     const clientsByVerifierRes = await axios({
       method: "GET",
@@ -210,7 +211,7 @@ const allocationDatacap = async () => {
 
         // console.log("dataCapRemaining, dataCapAllocated", "checkClient" ,bytesToiB(dataCapRemainingBytes) ,bytesToiB(dataCapAllocatedBytes), checkClient[0]?.datacap)
         const margin = dataCapRemainingBytes / dataCapAllocatedBytes;
-        console.log(`[${PHASE}] Issue n ${issue.number} margin:`, margin);
+        logGeneral(` Issue n ${issue.number} margin:`, margin);
 
         const dcAllocationRequested = calculateAllocationToRequest(
           allocation,
@@ -242,7 +243,7 @@ const allocationDatacap = async () => {
         };
 
         if (margin <= 0.25) {
-        // if (issue.number === 84) {// ***USED FOR TEST***
+          // if (issue.number === 84) {// ***USED FOR TEST***
 
           const body = newAllocationRequestComment(
             info.address,
@@ -294,7 +295,7 @@ const allocationDatacap = async () => {
           issueInfoList.push(info);
         }
       } catch (error) {
-        console.log(`[${PHASE}] Error, issue n ${issue.number}: ${error}`);
+        logGeneral(` Error, issue n ${issue.number}: ${error}`);
         console.log(
           `**Please, check that the datacap for the issue client has been granted**`
         );
