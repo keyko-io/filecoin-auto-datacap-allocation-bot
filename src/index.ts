@@ -263,16 +263,16 @@ const allocationDatacap = async () => {
             body,
           });
           if (commentResult.status === 201) {
+            await octokit.issues.removeAllLabels({
+              owner,
+              repo,
+              issue_number: info.issueNumber,
+            });
             await octokit.issues.addLabels({
               owner,
               repo,
               issue_number: info.issueNumber,
               labels: ["bot:readyToSign"],
-            });
-            await octokit.issues.removeAllLabels({
-              owner,
-              repo,
-              issue_number: info.issueNumber,
             });
           }
 
