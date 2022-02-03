@@ -11,13 +11,14 @@ import {
 import axios from "axios";
 import { createAppAuth } from "@octokit/auth-app";
 import { EVENT_TYPE, MetricsApiParams } from "./Metrics";
+import { logGeneral, logWarn, logDebug, logError} from './logger/ConsoleLogger'
 const {
   callMetricsApi,
 } = require("@keyko-io/filecoin-verifier-tools/metrics/metrics");
 
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
-const PHASE = `Subsequent Allocation ${process.env.ENVIRONMENT}`;
+// const PHASE = `Subsequent Allocation`;
 
 type IssueInfo = {
   issueNumber: number;
@@ -66,7 +67,7 @@ const octokit = new Octokit({
 
 const allocationDatacap = async () => {
   try {
-    console.log(`[${PHASE}] Issue number 0 Subsequent-Allocation-Bot started.`);
+    logGeneral(`Issue number 0 Subsequent-Allocation-Bot started.`);
 
     const clientsByVerifierRes = await axios({
       method: "GET",
@@ -87,8 +88,7 @@ const allocationDatacap = async () => {
     for (const issue of rawIssues) {
       try {
         if (issue.labels.find((item: any) => item.name === "bot:readyToSign")) {
-          console.log(
-            `[${PHASE}] Issue number ${issue.number} skipped --> bot:readyToSign is present`
+          logGeneral(`Issue number ${issue.number} skipped --> bot:readyToSign is present`
           );
           continue;
         }
@@ -97,14 +97,12 @@ const allocationDatacap = async () => {
             (item: any) => item.name === "status:needsDiligence"
           )
         ) {
-          console.log(
-            `[${PHASE}] Issue number ${issue.number} skipped -->status:needsDiligence is present`
+          logGeneral(`Issue number ${issue.number} skipped -->status:needsDiligence is present`
           );
           continue;
         }
         if (issue.labels.find((item: any) => item.name === "status:Error")) {
-          console.log(
-            `[${PHASE}] Issue number ${issue.number} skipped --> status:Error is present`
+          logGeneral(`Issue number ${issue.number} skipped --> status:Error is present`
           );
           continue;
         }
@@ -139,26 +137,22 @@ const allocationDatacap = async () => {
         const requestNumber = requestList.length;
 
         if (lastRequest === undefined) {
-          console.log(
-            `[${PHASE}] Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`
+          logGeneral(`Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`
           );
           continue;
         }
         if (!lastRequest.allocationDatacap && !lastRequest.clientAddress) {
-          console.log(
-            `[${PHASE}] Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`
+          logGeneral(`Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`
           );
           continue;
         }
         if (!lastRequest.clientAddress) {
-          console.log(
-            `[${PHASE}] Issue number ${issue.number} skipped --> clientAddressnot found after parsing the comments`
+          logGeneral(`Issue number ${issue.number} skipped --> clientAddressnot found after parsing the comments`
           );
           continue;
         }
         if (!lastRequest.allocationDatacap) {
-          console.log(
-            `[${PHASE}] Issue number ${issue.number} skipped --> datacapAllocated not found after parsing the comments`
+          logGeneral(`Issue number ${issue.number} skipped --> datacapAllocated not found after parsing the comments`
           );
           continue;
         }
@@ -169,8 +163,7 @@ const allocationDatacap = async () => {
           (item: any) => item.address == lastRequest.clientAddress
         );
         if (!client) {
-          console.log(
-            `[${PHASE}] Issue number ${issue.number} skipped --> dc not allocated yet`
+          logGeneral(`Issue number ${issue.number} skipped --> dc not allocated yet`
           );
           continue;
         }
@@ -204,13 +197,13 @@ const allocationDatacap = async () => {
         const dataCapRemainingBytes: number = clientAllowanceObj.data.allowance;
 
         // if(checkClient[0]?.datacap != dataCapRemainingBytes){
-        //     console.error(`issue number ${issue.number}, actoraddress ${actorAddress} - address ${lastRequest.clientAddress} values from node (${checkClient[0]?.datacap}) and values from API (${client.allowance} don't match`)
+        //     logError(`issue number ${issue.number}, actoraddress ${actorAddress} - address ${lastRequest.clientAddress} values from node (${checkClient[0]?.datacap}) and values from API (${client.allowance} don't match`)
         //     continue
         // }
 
         // console.log("dataCapRemaining, dataCapAllocated", "checkClient" ,bytesToiB(dataCapRemainingBytes) ,bytesToiB(dataCapAllocatedBytes), checkClient[0]?.datacap)
         const margin = dataCapRemainingBytes / dataCapAllocatedBytes;
-        console.log(`[${PHASE}] Issue n ${issue.number} margin:`, margin);
+        logGeneral(`Issue n ${issue.number} margin: ${margin}`);
 
         const dcAllocationRequested = calculateAllocationToRequest(
           allocation,
@@ -242,7 +235,7 @@ const allocationDatacap = async () => {
         };
 
         if (margin <= 0.25) {
-        // if (issue.number === 84) {// ***USED FOR TEST***
+          // if (issue.number === 84) {// ***USED FOR TEST***
 
           const body = newAllocationRequestComment(
             info.address,
@@ -251,8 +244,7 @@ const allocationDatacap = async () => {
             info.msigAddress
           );
 
-          console.log(
-            `[${PHASE}] CREATE REQUEST COMMENT issue number ${info.issueNumber}`
+          logGeneral(`CREATE REQUEST COMMENT issue number ${info.issueNumber}`
           );
           // console.log("info", info)
           // console.log("client", client)
@@ -288,13 +280,12 @@ const allocationDatacap = async () => {
             EVENT_TYPE.SUBSEQUENT_DC_REQUEST,
             params
           ); //TEST
-          console.log(
-            `[${PHASE}] issue n ${issue.number}, posted subsequent allocation comment.`
+          logGeneral(`issue n ${issue.number}, posted subsequent allocation comment.`
           );
           issueInfoList.push(info);
         }
       } catch (error) {
-        console.log(`[${PHASE}] Error, issue n ${issue.number}: ${error}`);
+        logGeneral(` Error, issue n ${issue.number}: ${error}`);
         console.log(
           `**Please, check that the datacap for the issue client has been granted**`
         );
@@ -302,17 +293,15 @@ const allocationDatacap = async () => {
       }
     }
     await commentStats(issueInfoList);
-    console.log(
-      `[${PHASE}] Issue number 0 Subsequent-Allocation-Bot ended. Number of issues commented: ${issueInfoList.length}`
+    logGeneral(`Issue number 0 Subsequent-Allocation-Bot ended. Number of issues commented: ${issueInfoList.length}`
     );
-    console.log(
-      `[${PHASE}] Issue number 0 Subsequent-Allocation-Bot - issues commented: ${issueInfoList.map(
+    logGeneral(`Issue number 0 Subsequent-Allocation-Bot - issues commented: ${issueInfoList.map(
         (info: any) => info.issueNumber
       )}`
     );
   } catch (error) {
-    console.error("error listing the issues, generic error in the bot");
-    console.error(error);
+    logError("error listing the issues, generic error in the bot");
+    logError(error);
   }
 };
 
@@ -336,7 +325,7 @@ const commentStats = async (list: IssueInfo[]) => {
       );
       if (apiElement === undefined) {
         throw new Error(
-          `[${PHASE}] Error, stat comment of issue n ${info.issueNumber} failed because the bot couldn't find the correspondent address in the filplus dashboard`
+          `Error, stat comment of issue n ${info.issueNumber} failed because the bot couldn't find the correspondent address in the filplus dashboard`
         );
       }
 
@@ -369,8 +358,7 @@ const commentStats = async (list: IssueInfo[]) => {
 
       try {
         // console.log("CREATE STATS COMMENT", info.issueNumber)
-        console.log(
-          `[${PHASE}] CREATE STATS COMMENT, issue n ${info.issueNumber}`
+        logGeneral(`CREATE STATS COMMENT, issue n ${info.issueNumber}`
         );
         await octokit.issues.createComment({
           owner,
@@ -379,12 +367,12 @@ const commentStats = async (list: IssueInfo[]) => {
           body,
         });
       } catch (error) {
-        console.error(error);
+        logError(error);
         continue;
       }
     }
   } catch (error) {
-    console.error(error);
+    logError(error);
   }
 };
 
@@ -463,8 +451,7 @@ const retrieveLastTwoSigners = (
     }
     return requestList;
   } catch (error) {
-    console.log(
-      `[${PHASE}] Error, issue n ${issueNumber}, error retrieving the last 2 signers. ${error}`
+    logGeneral(`Error, issue n ${issueNumber}, error retrieving the last 2 signers. ${error}`
     );
   }
 };
