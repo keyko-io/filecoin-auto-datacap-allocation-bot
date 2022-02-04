@@ -11,7 +11,7 @@ import {
 import axios from "axios";
 import { createAppAuth } from "@octokit/auth-app";
 import { EVENT_TYPE, MetricsApiParams } from "./Metrics";
-import { logGeneral, logWarn, logDebug, logError } from './logger/ConsoleLogger'
+import { logGeneral, logWarn, logDebug, logError } from './logger/consoleLogger'
 const { callMetricsApi, } = require("@keyko-io/filecoin-verifier-tools/metrics/metrics");
 
 const owner = config.githubLDNOwner;
