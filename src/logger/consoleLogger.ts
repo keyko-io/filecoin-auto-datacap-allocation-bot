@@ -4,15 +4,15 @@ const PHASE = `Subsequent Allocation`;
 
 export const logGeneral = (message: string): void => {
    if(!checkEnvTestLog(message)) return 
-    console.log(`[${PHASE}] ${message}`)
+    console.log(`[${PHASE}] INFO ${message}`)
 }
 export const logWarn = (message: string): void => {
     if(!checkEnvTestLog(message)) return 
-    console.warn(`[${PHASE}] ${message}`)
+    console.warn(`[${PHASE}] WARN ${message}`)
 }
 export const logDebug = (message: string): void => {
     if(!checkEnvTestLog(message)) return 
-    console.debug(`[${PHASE}] ${message}`)
+    console.debug(`[${PHASE}] DEBUG ${message}`)
 }
 export const logError = (message: string): void => {
     if(!checkEnvTestLog(message)) return 
@@ -22,7 +22,7 @@ export const logError = (message: string): void => {
 const checkEnvTestLog = (message: string) => {
     if (ENVIRONMENT === "test") {
         // console.log(`testLog`)
-        console.log(`testLog [${PHASE}] ${message}`)
+        console.log(`testLog [${PHASE}] ERROR ${message}`)
         return false
     }
     return true
