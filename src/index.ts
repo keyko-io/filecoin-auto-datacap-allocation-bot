@@ -11,7 +11,7 @@ import {
 import axios from "axios";
 import { createAppAuth } from "@octokit/auth-app";
 import { EVENT_TYPE, MetricsApiParams } from "./Metrics";
-import { logGeneral, logWarn, logDebug, logError} from './logger/ConsoleLogger'
+import { logGeneral, logWarn, logDebug, logError } from './logger/ConsoleLogger'
 const {
   callMetricsApi,
 } = require("@keyko-io/filecoin-verifier-tools/metrics/metrics");
@@ -84,26 +84,20 @@ const allocationDatacap = async () => {
     });
 
     let issueInfoList: IssueInfo[] = [];
-    console.log(`Number of fetched comments: ${rawIssues.length}`);
+    logGeneral(`issue n 0 Number of fetched comments: ${rawIssues.length}`);
     for (const issue of rawIssues) {
       try {
         if (issue.labels.find((item: any) => item.name === "bot:readyToSign")) {
-          logGeneral(`Issue number ${issue.number} skipped --> bot:readyToSign is present`
-          );
+          logGeneral(`Issue number ${issue.number} skipped --> bot:readyToSign is present`);
           continue;
         }
         if (
-          issue.labels.find(
-            (item: any) => item.name === "status:needsDiligence"
-          )
-        ) {
-          logGeneral(`Issue number ${issue.number} skipped -->status:needsDiligence is present`
-          );
+          issue.labels.find((item: any) => item.name === "status:needsDiligence")) {
+          logGeneral(`Issue number ${issue.number} skipped -->status:needsDiligence is present`);
           continue;
         }
         if (issue.labels.find((item: any) => item.name === "status:Error")) {
-          logGeneral(`Issue number ${issue.number} skipped --> status:Error is present`
-          );
+          logGeneral(`Issue number ${issue.number} skipped --> status:Error is present`);
           continue;
         }
 
@@ -117,19 +111,15 @@ const allocationDatacap = async () => {
           }
         );
 
+
         //parse weeklhy dc in issue
         // the amount to take into account is expected weekly usage rate or 5% of total dc requested (the lower)
         // in this case I compare the entire weekly amount and 10% of total datacap requested
-        const weeklyDcAllocationBytes = anyToBytes(
-          parseIssue(issue.body).dataCapWeeklyAllocation.toString()
-        );
-        const tenPercentAllocationBytes =
-          anyToBytes(parseIssue(issue.body).datacapRequested.toString()) * 0.1;
-
-        const allocation =
-          weeklyDcAllocationBytes <= tenPercentAllocationBytes
-            ? weeklyDcAllocationBytes
-            : tenPercentAllocationBytes;
+        const totaldDcRequestedByClient = parseIssue(issue.body).datacapRequested
+        const weeklyAllocationRequestedByClient = parseIssue(issue.body).dataCapWeeklyAllocation
+        const weeklyDcAllocationBytes = anyToBytes(weeklyAllocationRequestedByClient.toString());
+        const tenPercentAllocationBytes = anyToBytes(totaldDcRequestedByClient.toString()) * 0.1;
+        const allocation = weeklyDcAllocationBytes <= tenPercentAllocationBytes ? weeklyDcAllocationBytes : tenPercentAllocationBytes;
 
         //Parse dc requested msig notary address and  client address
         const requestList = await findDatacapRequested(issueComments);
@@ -137,47 +127,34 @@ const allocationDatacap = async () => {
         const requestNumber = requestList.length;
 
         if (lastRequest === undefined) {
-          logGeneral(`Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`
-          );
+          logGeneral(`Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`);
           continue;
         }
         if (!lastRequest.allocationDatacap && !lastRequest.clientAddress) {
-          logGeneral(`Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`
-          );
+          logGeneral(`Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`);
           continue;
         }
         if (!lastRequest.clientAddress) {
-          logGeneral(`Issue number ${issue.number} skipped --> clientAddressnot found after parsing the comments`
-          );
+          logGeneral(`Issue number ${issue.number} skipped --> clientAddress not found after parsing the comments`);
           continue;
         }
         if (!lastRequest.allocationDatacap) {
-          logGeneral(`Issue number ${issue.number} skipped --> datacapAllocated not found after parsing the comments`
-          );
+          logGeneral(`Issue number ${issue.number} skipped --> datacapAllocated not found after parsing the comments`);
           continue;
         }
 
         //Check datacap remaining for this address
 
-        const client = clientsByVerifierRes.data.data.find(
-          (item: any) => item.address == lastRequest.clientAddress
-        );
+        const client = clientsByVerifierRes.data.data.find((item: any) => item.address == lastRequest.clientAddress);
         if (!client) {
-          logGeneral(`Issue number ${issue.number} skipped --> dc not allocated yet`
-          );
+          logGeneral(`Issue number ${issue.number} skipped --> dc not allocated yet`);
           continue;
         }
 
-        // let actorAddress: any = "";
-        // if (lastRequest.clientAddress.startsWith("f1")) {
-        //   actorAddress = await api.actorAddress(lastRequest.clientAddress);
-        // } else {
-        //   actorAddress = await api.cachedActorAddress(
-        //     lastRequest.clientAddress
-        //   );
-        // }
+        const totalDcGrantedForClientSoFar = client.allowanceArray.reduce((s: number, item: any) => s + parseInt(item.allowance), 0)
+        // console.log("reduce", totalDcGrantedForClientSoFar)
 
-        // const checkClient = aswait api.checkClient(actorAddress)
+        //get remaining datacap for the client
         const clientAllowanceObj = await axios({
           method: "GET",
           url: `${config.filpusApi}/getAllowanceForAddress/${lastRequest.clientAddress}`,
@@ -185,29 +162,20 @@ const allocationDatacap = async () => {
             "x-api-key": config.filplusApiKey,
           },
         });
-        // console.log("checkClient", checkClient)
-        // console.log("clP", clientAllowanceObj.data.allowance)
 
-        const dataCapAllocatedConvert = lastRequest.allocationDatacap.endsWith(
-          "B"
-        )
-          ? anyToBytes(lastRequest.allocationDatacap)
-          : lastRequest.allocationDatacap;
+        const dataCapAllocatedConvert = lastRequest.allocationDatacap.endsWith("B") ? anyToBytes(lastRequest.allocationDatacap) : lastRequest.allocationDatacap;
+
         const dataCapAllocatedBytes = Number(dataCapAllocatedConvert);
         const dataCapRemainingBytes: number = clientAllowanceObj.data.allowance;
 
-        // if(checkClient[0]?.datacap != dataCapRemainingBytes){
-        //     logError(`issue number ${issue.number}, actoraddress ${actorAddress} - address ${lastRequest.clientAddress} values from node (${checkClient[0]?.datacap}) and values from API (${client.allowance} don't match`)
-        //     continue
-        // }
-
-        // console.log("dataCapRemaining, dataCapAllocated", "checkClient" ,bytesToiB(dataCapRemainingBytes) ,bytesToiB(dataCapAllocatedBytes), checkClient[0]?.datacap)
         const margin = dataCapRemainingBytes / dataCapAllocatedBytes;
         logGeneral(`Issue n ${issue.number} margin: ${margin}`);
 
         const dcAllocationRequested = calculateAllocationToRequest(
           allocation,
-          requestNumber
+          requestNumber,
+          totalDcGrantedForClientSoFar,
+          anyToBytes(totaldDcRequestedByClient.toString())
         );
 
         // retrieve last 2 signers to put in stat comment
@@ -215,7 +183,7 @@ const allocationDatacap = async () => {
           issueComments,
           issue.number
         );
-        // console.log("issue.number",issue.number,"lastTwoSigners",lastTwoSigners)
+
         const info: IssueInfo = {
           issueNumber: issue.number,
           msigAddress: lastRequest.notaryAddress,
@@ -227,7 +195,6 @@ const allocationDatacap = async () => {
           topProvider: client.topProvider || "0",
           nDeals: client.dealCount || "0",
           previousDcAllocated: lastRequest.allocationDatacap || "not found",
-          // info.previousDcAllocated = bytesToiB(apiElement.allowanceArray[apiElement.allowanceArray.length - 1].allowance) || "not found"
           nStorageProviders: client.providerCount || "0",
           clientName: client.name || "not found",
           verifierAddressId: client.verifierAddressId || "not found",
@@ -244,22 +211,22 @@ const allocationDatacap = async () => {
             info.msigAddress
           );
 
-          logGeneral(`CREATE REQUEST COMMENT issue number ${info.issueNumber}`
-          );
-          // console.log("info", info)
-          // console.log("client", client)
+          logGeneral(`CREATE REQUEST COMMENT issue number ${info.issueNumber}`);
+
           const commentResult = await octokit.issues.createComment({
             owner,
             repo,
             issue_number: info.issueNumber,
             body,
           });
+
           if (commentResult.status === 201) {
             await octokit.issues.removeAllLabels({
               owner,
               repo,
               issue_number: info.issueNumber,
             });
+
             await octokit.issues.addLabels({
               owner,
               repo,
@@ -285,20 +252,13 @@ const allocationDatacap = async () => {
           issueInfoList.push(info);
         }
       } catch (error) {
-        logGeneral(` Error, issue n ${issue.number}: ${error}`);
-        console.log(
-          `**Please, check that the datacap for the issue client has been granted**`
-        );
+        logError(` Error, issue n ${issue.number}: ${error} - **Please, check that the datacap for the issue client has been granted**`);
         continue;
       }
     }
     await commentStats(issueInfoList);
-    logGeneral(`Issue number 0 Subsequent-Allocation-Bot ended. Number of issues commented: ${issueInfoList.length}`
-    );
-    logGeneral(`Issue number 0 Subsequent-Allocation-Bot - issues commented: ${issueInfoList.map(
-        (info: any) => info.issueNumber
-      )}`
-    );
+    logGeneral(`Issue number 0 Subsequent-Allocation-Bot ended. Number of issues commented: ${issueInfoList.length}`);
+    logGeneral(`Issue number 0 Subsequent-Allocation-Bot - issues commented: ${issueInfoList.map((info: any) => info.issueNumber)}`);
   } catch (error) {
     logError("error listing the issues, generic error in the bot");
     logError(error);
@@ -378,32 +338,43 @@ const commentStats = async (list: IssueInfo[]) => {
 
 const calculateAllocationToRequest = (
   allocationDatacap: number,
-  requestNumber: number
+  requestNumber: number,
+  totalDcGrantedForClientSoFar: number,
+  totaldDcRequestedByClient: number
 ) => {
 
-  let dcAmountBytes = 0;
+  let nextRequest = 0;
   console.log("req number:", requestNumber)
   switch (requestNumber) {
     case 0: //1nd req (won't never happen here :) - 50%
-      dcAmountBytes = allocationDatacap / 2;
+      nextRequest = allocationDatacap / 2;
       break;
     case 1: //2nd req - 100% of the amount in the issue
-      dcAmountBytes = allocationDatacap;
+      nextRequest = allocationDatacap;
       break;
     case 2: //3rd req - 200% of the amount in the issue
-      dcAmountBytes = allocationDatacap * 2;
+      nextRequest = allocationDatacap * 2;
       break;
     case 3: //4th req - 400% of the amount in the issue
-      dcAmountBytes = allocationDatacap * 4;
+      nextRequest = allocationDatacap * 4;
       break;
 
     default:
       //5th req on - 800% of the amount in the issue
-      dcAmountBytes = allocationDatacap * 8;
+      nextRequest = allocationDatacap * 8;
       break;
   }
 
-  return bytesToiB(Math.floor(dcAmountBytes));
+
+  const sumTotalAmountWithNextRequest = nextRequest + totalDcGrantedForClientSoFar
+  logDebug(`sumTotalAmountWithNextRequest (sum next request + total datcap granted to client so far): ${bytesToiB(sumTotalAmountWithNextRequest)}`)
+
+  if (sumTotalAmountWithNextRequest > totaldDcRequestedByClient) {
+    logDebug(`sumTotalAmountWithNextRequest is higher than total datacap requested by client (${totaldDcRequestedByClient}, requesting the difference of total dc requested - total datacap granted so far)`)
+    nextRequest = totaldDcRequestedByClient - totalDcGrantedForClientSoFar
+  }
+
+  return bytesToiB(Math.floor(nextRequest));
 };
 
 const findDatacapRequested = async (
