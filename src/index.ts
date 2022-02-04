@@ -12,9 +12,7 @@ import axios from "axios";
 import { createAppAuth } from "@octokit/auth-app";
 import { EVENT_TYPE, MetricsApiParams } from "./Metrics";
 import { logGeneral, logWarn, logDebug, logError } from './logger/ConsoleLogger'
-const {
-  callMetricsApi,
-} = require("@keyko-io/filecoin-verifier-tools/metrics/metrics");
+const { callMetricsApi, } = require("@keyko-io/filecoin-verifier-tools/metrics/metrics");
 
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
@@ -35,6 +33,10 @@ type IssueInfo = {
   clientName?: string;
   topProvider?: string;
   lastTwoSigners?: string[];
+  totalDcGrantedForClientSoFar?: string
+  totaldDcRequestedByClient?: string
+  deltaTotalDcAndDatacapGranted?: string
+  rule?: string
 };
 
 const api = new VerifyAPI( // eslint-disable-line
@@ -118,8 +120,10 @@ const allocationDatacap = async () => {
         const totaldDcRequestedByClient = parseIssue(issue.body).datacapRequested
         const weeklyAllocationRequestedByClient = parseIssue(issue.body).dataCapWeeklyAllocation
         const weeklyDcAllocationBytes = anyToBytes(weeklyAllocationRequestedByClient.toString());
-        const tenPercentAllocationBytes = anyToBytes(totaldDcRequestedByClient.toString()) * 0.1;
-        const allocation = weeklyDcAllocationBytes <= tenPercentAllocationBytes ? weeklyDcAllocationBytes : tenPercentAllocationBytes;
+        const totaldDcRequestedByClientBytes = anyToBytes(totaldDcRequestedByClient.toString());
+        // const tenPercentAllocationBytes = anyToBytes(totaldDcRequestedByClient.toString()) * 0.1;
+        // const allocation = weeklyDcAllocationBytes <= tenPercentAllocationBytes ? weeklyDcAllocationBytes : tenPercentAllocationBytes;
+        // const allocationRule = weeklyDcAllocationBytes <= tenPercentAllocationBytes ? "weekly" : "percentageDatacap";
 
         //Parse dc requested msig notary address and  client address
         const requestList = await findDatacapRequested(issueComments);
@@ -172,10 +176,11 @@ const allocationDatacap = async () => {
         logGeneral(`Issue n ${issue.number} margin: ${margin}`);
 
         const dcAllocationRequested = calculateAllocationToRequest(
-          allocation,
           requestNumber,
           totalDcGrantedForClientSoFar,
-          anyToBytes(totaldDcRequestedByClient.toString())
+          totaldDcRequestedByClientBytes,
+          weeklyDcAllocationBytes,
+          issue.number
         );
 
         // retrieve last 2 signers to put in stat comment
@@ -189,7 +194,7 @@ const allocationDatacap = async () => {
           msigAddress: lastRequest.notaryAddress,
           address: lastRequest.clientAddress,
           actorAddress: client.addressId ? client.addressId : client.address,
-          dcAllocationRequested,
+          dcAllocationRequested: dcAllocationRequested.amount,
           remainingDatacap: bytesToiB(dataCapRemainingBytes),
           lastTwoSigners,
           topProvider: client.topProvider || "0",
@@ -199,6 +204,11 @@ const allocationDatacap = async () => {
           clientName: client.name || "not found",
           verifierAddressId: client.verifierAddressId || "not found",
           verifierName: client.verifierName || "not found",
+          totalDcGrantedForClientSoFar: bytesToiB(totalDcGrantedForClientSoFar),
+          totaldDcRequestedByClient,
+          deltaTotalDcAndDatacapGranted: bytesToiB(anyToBytes(totaldDcRequestedByClient.toString()) - totalDcGrantedForClientSoFar),
+          rule: dcAllocationRequested.rule
+
         };
 
         if (margin <= 0.25) {
@@ -208,7 +218,8 @@ const allocationDatacap = async () => {
             info.address,
             info.dcAllocationRequested,
             "90TiB",
-            info.msigAddress
+            info.msigAddress,
+            requestNumber
           );
 
           logGeneral(`CREATE REQUEST COMMENT issue number ${info.issueNumber}`);
@@ -313,7 +324,11 @@ const commentStats = async (list: IssueInfo[]) => {
         info.nStorageProviders,
         info.remainingDatacap,
         info.actorAddress,
-        githubHandles
+        githubHandles,
+        info.totalDcGrantedForClientSoFar,
+        info.totaldDcRequestedByClient,
+        info.deltaTotalDcAndDatacapGranted,
+        info.rule
       );
 
       try {
@@ -337,44 +352,69 @@ const commentStats = async (list: IssueInfo[]) => {
 };
 
 const calculateAllocationToRequest = (
-  allocationDatacap: number,
   requestNumber: number,
   totalDcGrantedForClientSoFar: number,
-  totaldDcRequestedByClient: number
+  totaldDcRequestedByClient: number,
+  weeklyDcAllocationBytes: number,
+  issueNumber:any
 ) => {
+  logDebug(`issue n ${issueNumber} weekly datacap requested by client: ${bytesToiB(weeklyDcAllocationBytes)} ${weeklyDcAllocationBytes}B`)
+
+  logDebug(`issue n ${issueNumber} total datacap requested by client: ${bytesToiB(totaldDcRequestedByClient)}, ${totaldDcRequestedByClient}B`)
+
 
   let nextRequest = 0;
+  let rule = ""
+  let condition = true
+  // const allocation = weeklyDcAllocationBytes <= tenPercentAllocationBytes ? weeklyDcAllocationBytes : tenPercentAllocationBytes;
   console.log("req number:", requestNumber)
   switch (requestNumber) {
     case 0: //1nd req (won't never happen here :) - 50%
-      nextRequest = allocationDatacap / 2;
+      condition = weeklyDcAllocationBytes / 2 <= totaldDcRequestedByClient * 0.05
+      nextRequest = condition ? weeklyDcAllocationBytes / 2 : totaldDcRequestedByClient * 0.05;
+      rule = condition ? `50% of weekly dc amount requested` : `5% of total dc amount requested`
       break;
     case 1: //2nd req - 100% of the amount in the issue
-      nextRequest = allocationDatacap;
+      condition = weeklyDcAllocationBytes <= totaldDcRequestedByClient * 0.1
+      nextRequest = condition ? weeklyDcAllocationBytes : totaldDcRequestedByClient * 0.1;
+      rule = condition ? `100% of weekly dc amount requested` : `10% of total dc amount requested`
       break;
     case 2: //3rd req - 200% of the amount in the issue
-      nextRequest = allocationDatacap * 2;
+      condition = weeklyDcAllocationBytes * 2 <= totaldDcRequestedByClient * 0.2
+      nextRequest = condition ? weeklyDcAllocationBytes * 2 : totaldDcRequestedByClient * 0.2;
+      rule = condition ? `200% of weekly dc amount requested` : `20% of total dc amount requested`
       break;
     case 3: //4th req - 400% of the amount in the issue
-      nextRequest = allocationDatacap * 4;
+      condition = weeklyDcAllocationBytes * 4 <= totaldDcRequestedByClient * 0.4
+      nextRequest = condition ? weeklyDcAllocationBytes * 4 : totaldDcRequestedByClient * 0.4;
+      rule = condition ? `400% of weekly dc amount requested` : `40% of total dc amount requested`
       break;
 
     default:
       //5th req on - 800% of the amount in the issue
-      nextRequest = allocationDatacap * 8;
+      condition = weeklyDcAllocationBytes * 8 <= totaldDcRequestedByClient * 0.8
+      nextRequest = condition ? weeklyDcAllocationBytes * 8 : totaldDcRequestedByClient * 0.8;
+      rule = condition ? `800% of weekly dc amount requested` : `80% of total dc amount requested`
       break;
   }
 
 
   const sumTotalAmountWithNextRequest = nextRequest + totalDcGrantedForClientSoFar
-  logDebug(`sumTotalAmountWithNextRequest (sum next request + total datcap granted to client so far): ${bytesToiB(sumTotalAmountWithNextRequest)}`)
+  logDebug(`issue n ${issueNumber} sumTotalAmountWithNextRequest (sum next request + total datcap granted to client so far): ${bytesToiB(sumTotalAmountWithNextRequest)}`)
 
   if (sumTotalAmountWithNextRequest > totaldDcRequestedByClient) {
-    logDebug(`sumTotalAmountWithNextRequest is higher than total datacap requested by client (${totaldDcRequestedByClient}, requesting the difference of total dc requested - total datacap granted so far)`)
+    logDebug(`issue n ${issueNumber} sumTotalAmountWithNextRequest is higher than total datacap requested by client (${totaldDcRequestedByClient}, requesting the difference of total dc requested - total datacap granted so far)`)
     nextRequest = totaldDcRequestedByClient - totalDcGrantedForClientSoFar
   }
+  
+  logDebug(`issue n ${issueNumber} nextRequest ${bytesToiB(Math.floor(nextRequest))}`)
+  logDebug(`issue n ${issueNumber} allocation rule: ${rule}`)
+  const retObj = {
+    amount: bytesToiB(Math.floor(nextRequest)),
+    rule
+  }
 
-  return bytesToiB(Math.floor(nextRequest));
+  return retObj
 };
 
 const findDatacapRequested = async (

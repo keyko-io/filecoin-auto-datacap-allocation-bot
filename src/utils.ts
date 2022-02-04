@@ -34,7 +34,7 @@ export function bytesToiB(inputBytes: number) {
   //this is bc it cannot convert 1099511627776000 to 1PiB
   if (autoscale.dataFormat === "YiB") {
     autoscale = byteConverter.autoScale(inputBytes-32, 'B', { preferByte: true, preferBinary: true } as any)
-    return `${autoscale.value.toFixed(1)}${autoscale.dataFormat}`
+    return `${(autoscale.value / 1024).toFixed(1)}${"PiB"}`
 }
 return `${autoscale.value}${autoscale.dataFormat}`
   // return `${Number.isInteger(autoscale.value) ? autoscale.value : autoscale.value.toFixed(1)}${autoscale.dataFormat}`
