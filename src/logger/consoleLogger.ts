@@ -22,7 +22,7 @@ export const logError = (message: string): void => {
 const checkEnvTestLog = (message: string) => {
     if (ENVIRONMENT === "test") {
         // console.log(`testLog`)
-        console.log(`testLog [${PHASE}] ERROR ${message}`)
+        console.log(`testLog [${PHASE}] INFO ${message}`)
         return false
     }
     return true
