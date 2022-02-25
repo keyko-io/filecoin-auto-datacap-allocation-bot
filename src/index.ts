@@ -170,7 +170,22 @@ const allocationDatacap = async () => {
         const dataCapAllocatedConvert = lastRequest.allocationDatacap.endsWith("B") ? anyToBytes(lastRequest.allocationDatacap) : lastRequest.allocationDatacap;
 
         const dataCapAllocatedBytes = Number(dataCapAllocatedConvert);
-        const dataCapRemainingBytes: number = clientAllowanceObj.data.allowance;
+        let dataCapRemainingBytes: number = parseInt(clientAllowanceObj.data.allowance);
+
+        if(!clientAllowanceObj.data.allowance) {
+          let actorAddress: any = ""
+                if (lastRequest.clientAddress.startsWith("f1")) {
+                    actorAddress = await api.actorAddress(lastRequest.clientAddress)
+                } else {
+                    actorAddress = await api.cachedActorAddress(lastRequest.clientAddress)
+                }
+          const checkClient = await api.checkClient(actorAddress)
+          dataCapRemainingBytes = parseInt(checkClient[0].datacap)
+          if(!dataCapRemainingBytes) {
+            logError(`Issue n ${issue.number} - the remaining datacap for this issue cannot be retrieved.`)
+            continue
+          }
+        }
 
         const margin = dataCapRemainingBytes / dataCapAllocatedBytes;
         logGeneral(`Issue n ${issue.number} margin: ${margin}`);
@@ -356,7 +371,7 @@ const calculateAllocationToRequest = (
   totalDcGrantedForClientSoFar: number,
   totaldDcRequestedByClient: number,
   weeklyDcAllocationBytes: number,
-  issueNumber:any
+  issueNumber: any
 ) => {
   logDebug(`issue n ${issueNumber} weekly datacap requested by client: ${bytesToiB(weeklyDcAllocationBytes)} ${weeklyDcAllocationBytes}B`)
 
@@ -406,7 +421,7 @@ const calculateAllocationToRequest = (
     logDebug(`issue n ${issueNumber} sumTotalAmountWithNextRequest is higher than total datacap requested by client (${totaldDcRequestedByClient}, requesting the difference of total dc requested - total datacap granted so far)`)
     nextRequest = totaldDcRequestedByClient - totalDcGrantedForClientSoFar
   }
-  
+
   logDebug(`issue n ${issueNumber} nextRequest ${bytesToiB(Math.floor(nextRequest))}`)
   logDebug(`issue n ${issueNumber} allocation rule: ${rule}`)
   const retObj = {
