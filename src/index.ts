@@ -159,32 +159,40 @@ const allocationDatacap = async () => {
         // console.log("reduce", totalDcGrantedForClientSoFar)
 
         //get remaining datacap for the client
-        const clientAllowanceObj = await axios({
-          method: "GET",
-          url: `${config.filpusApi}/getAllowanceForAddress/${lastRequest.clientAddress}`,
-          headers: {
-            "x-api-key": config.filplusApiKey,
-          },
-        });
+        let clientAllowanceObj: any = {}
+        try {
+          clientAllowanceObj = await axios({
+            method: "GET",
+            url: `${config.filpusApi}/getAllowanceForAddress/${lastRequest.clientAddress}`,
+            headers: {
+              "x-api-key": config.filplusApiKey,
+            },
+          });
+
+        } catch (error) {
+          console.log(error)
+        }
 
         const dataCapAllocatedConvert = lastRequest.allocationDatacap.endsWith("B") ? anyToBytes(lastRequest.allocationDatacap) : lastRequest.allocationDatacap;
 
         const dataCapAllocatedBytes = Number(dataCapAllocatedConvert);
-        let dataCapRemainingBytes: number = parseInt(clientAllowanceObj.data.allowance);
+        let dataCapRemainingBytes = 0
 
-        if(!clientAllowanceObj.data.allowance) {
+        if (!clientAllowanceObj?.data || !clientAllowanceObj.data.allowance) {
           let actorAddress: any = ""
-                if (lastRequest.clientAddress.startsWith("f1")) {
-                    actorAddress = await api.actorAddress(lastRequest.clientAddress)
-                } else {
-                    actorAddress = await api.cachedActorAddress(lastRequest.clientAddress)
-                }
+          if (lastRequest.clientAddress.startsWith("f1")) {
+            actorAddress = await api.actorAddress(lastRequest.clientAddress)
+          } else {
+            actorAddress = await api.cachedActorAddress(lastRequest.clientAddress)
+          }
           const checkClient = await api.checkClient(actorAddress)
           dataCapRemainingBytes = parseInt(checkClient[0].datacap)
-          if(!dataCapRemainingBytes) {
+          if (!dataCapRemainingBytes) {
             logError(`Issue n ${issue.number} - the remaining datacap for this issue cannot be retrieved.`)
             continue
           }
+        }else{
+          dataCapRemainingBytes = parseInt(clientAllowanceObj.data.allowance);
         }
 
         const margin = dataCapRemainingBytes / dataCapAllocatedBytes;
@@ -226,63 +234,63 @@ const allocationDatacap = async () => {
 
         };
 
-        if (margin <= 0.25) {
-          // if (issue.number === 84) {// ***USED FOR TEST***
+        // if (margin <= 0.25) {
+        //   // if (issue.number === 84) {// ***USED FOR TEST***
 
-          const body = newAllocationRequestComment(
-            info.address,
-            info.dcAllocationRequested,
-            "90TiB",
-            info.msigAddress,
-            requestNumber
-          );
+        //   const body = newAllocationRequestComment(
+        //     info.address,
+        //     info.dcAllocationRequested,
+        //     "90TiB",
+        //     info.msigAddress,
+        //     requestNumber
+        //   );
 
-          logGeneral(`CREATE REQUEST COMMENT issue number ${info.issueNumber}`);
+        //   logGeneral(`CREATE REQUEST COMMENT issue number ${info.issueNumber}`);
 
-          const commentResult = await octokit.issues.createComment({
-            owner,
-            repo,
-            issue_number: info.issueNumber,
-            body,
-          });
+        //   const commentResult = await octokit.issues.createComment({
+        //     owner,
+        //     repo,
+        //     issue_number: info.issueNumber,
+        //     body,
+        //   });
 
-          if (commentResult.status === 201) {
-            await octokit.issues.removeAllLabels({
-              owner,
-              repo,
-              issue_number: info.issueNumber,
-            });
+        //   if (commentResult.status === 201) {
+        //     await octokit.issues.removeAllLabels({
+        //       owner,
+        //       repo,
+        //       issue_number: info.issueNumber,
+        //     });
 
-            await octokit.issues.addLabels({
-              owner,
-              repo,
-              issue_number: info.issueNumber,
-              labels: ["bot:readyToSign"],
-            });
-          }
+        //     await octokit.issues.addLabels({
+        //       owner,
+        //       repo,
+        //       issue_number: info.issueNumber,
+        //       labels: ["bot:readyToSign"],
+        //     });
+        //   }
 
-          //METRICS
-          const params: MetricsApiParams = {
-            name: info.clientName,
-            clientAddress: info.address,
-            msigAddress: info.msigAddress,
-            amount: info.dcAllocationRequested,
-          };
-          await callMetricsApi(
-            info.issueNumber,
-            EVENT_TYPE.SUBSEQUENT_DC_REQUEST,
-            params
-          ); //TEST
-          logGeneral(`issue n ${issue.number}, posted subsequent allocation comment.`
-          );
-          issueInfoList.push(info);
-        }
+        //   //METRICS
+        //   const params: MetricsApiParams = {
+        //     name: info.clientName,
+        //     clientAddress: info.address,
+        //     msigAddress: info.msigAddress,
+        //     amount: info.dcAllocationRequested,
+        //   };
+        //   await callMetricsApi(
+        //     info.issueNumber,
+        //     EVENT_TYPE.SUBSEQUENT_DC_REQUEST,
+        //     params
+        //   ); //TEST
+        //   logGeneral(`issue n ${issue.number}, posted subsequent allocation comment.`
+        //   );
+        //   issueInfoList.push(info);
+        // }
       } catch (error) {
         logError(` Error, issue n ${issue.number}: ${error} - **Please, check that the datacap for the issue client has been granted**`);
         continue;
       }
     }
-    await commentStats(issueInfoList);
+    // await commentStats(issueInfoList);
     logGeneral(`Issue number 0 Subsequent-Allocation-Bot ended. Number of issues commented: ${issueInfoList.length}`);
     logGeneral(`Issue number 0 Subsequent-Allocation-Bot - issues commented: ${issueInfoList.map((info: any) => info.issueNumber)}`);
   } catch (error) {
