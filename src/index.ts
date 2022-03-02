@@ -67,9 +67,67 @@ const octokit = new Octokit({
   },
 });
 
+enum LabelsEnum {
+  READY_TO_SIGN = "bot:readyToSign",
+  NEED_DILIGENCE = "status:needsDiligence",
+  ERROR = "status:Error",
+  TOTAL_DC_REACHED = "issue:TotalDcReached"
+}
+const LOG_PREFIX = `Issue number`
+
+const checkLabel = (issue: any) => {
+  if (issue.labels.find((item: any) => item.name === LabelsEnum.READY_TO_SIGN)) {
+    logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> ${LabelsEnum.READY_TO_SIGN} is present`);
+    return false
+  }
+  if (
+    issue.labels.find((item: any) => item.name === LabelsEnum.NEED_DILIGENCE)) {
+    logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> ${LabelsEnum.NEED_DILIGENCE} is present`);
+    return false
+  }
+  if (issue.labels.find((item: any) => item.name === LabelsEnum.ERROR)) {
+    logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> ${LabelsEnum.ERROR} is present`);
+    return false
+  }
+  if (issue.labels.find((item: any) => item.name === LabelsEnum.TOTAL_DC_REACHED)) {
+    logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> ${LabelsEnum.TOTAL_DC_REACHED} is present`);
+    return false
+  }
+  return true
+}
+
+const checkRequestAndReturnRequest = (requestListForEachIssue: any[], issue: any) => {
+
+  const requestList = requestListForEachIssue.find((requestItem: any) => requestItem.issueNumber == issue.number).requestList
+  const lastRequest = requestList[requestList.length - 1];
+  const requestNumber = requestListForEachIssue.length;
+
+  if (lastRequest === undefined) {
+    logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> DataCap allocation requested comment is not present`);
+    return { isValid: false }
+  }
+  if (!lastRequest.allocationDatacap && !lastRequest.clientAddress) {
+    logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> DataCap allocation requested comment is not present`);
+    return { isValid: false }
+  }
+  if (!lastRequest.clientAddress) {
+    logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> clientAddress not found after parsing the comments`);
+    return { isValid: false }
+  }
+  if (!lastRequest.allocationDatacap) {
+    logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> datacapAllocated not found after parsing the comments`);
+    return { isValid: false }
+  }
+  return {
+    isValid: true,
+    lastRequest,
+    requestNumber
+  }
+}
+
 const allocationDatacap = async () => {
   try {
-    logGeneral(`Issue number 0 Subsequent-Allocation-Bot started.`);
+    logGeneral(`${LOG_PREFIX} 0 Subsequent-Allocation-Bot started.`);
 
     const clientsByVerifierRes = await axios({
       method: "GET",
@@ -86,216 +144,262 @@ const allocationDatacap = async () => {
     });
 
     let issueInfoList: IssueInfo[] = [];
-    logGeneral(`issue n 0 Number of fetched comments: ${rawIssues.length}`);
-    for (const issue of rawIssues) {
-      try {
-        if (issue.labels.find((item: any) => item.name === "bot:readyToSign")) {
-          logGeneral(`Issue number ${issue.number} skipped --> bot:readyToSign is present`);
-          continue;
-        }
-        if (
-          issue.labels.find((item: any) => item.name === "status:needsDiligence")) {
-          logGeneral(`Issue number ${issue.number} skipped -->status:needsDiligence is present`);
-          continue;
-        }
-        if (issue.labels.find((item: any) => item.name === "status:Error")) {
-          logGeneral(`Issue number ${issue.number} skipped --> status:Error is present`);
-          continue;
-        }
+    let issueInfoListClosed = [];
+    logGeneral(`${LOG_PREFIX} 0 Number of fetched comments: ${rawIssues.length}`);
+    const promArr = []
 
-        //get all comments of a issue
-        const issueComments = await octokit.paginate(
-          octokit.rest.issues.listComments,
+
+    const commentsForEachIssue = await Promise.all(
+      rawIssues.map((issue: any) => new Promise<any>(async (resolve, reject) => {
+        const comments = await octokit.paginate(octokit.rest.issues.listComments,
           {
             owner,
             repo,
             issue_number: issue.number,
-          }
-        );
+          })
+        resolve({ issueNumber: issue.number, comments })
+      })
+      ))
 
+    const requestListForEachIssue = await Promise.all(
+      commentsForEachIssue.map((issue: any) => {
+        return new Promise<any>(async (resolve, reject) => {
+          const issueNumber = issue.issueNumber
+          const requestList = await findDatacapRequested(issue.comments)
+          resolve(
+            { issueNumber, requestList }
+          )
+        })
+      })
+    )
 
-        //parse weeklhy dc in issue
-        // the amount to take into account is expected weekly usage rate or 5% of total dc requested (the lower)
-        // in this case I compare the entire weekly amount and 10% of total datacap requested
-        const totaldDcRequestedByClient = parseIssue(issue.body).datacapRequested
-        const weeklyAllocationRequestedByClient = parseIssue(issue.body).dataCapWeeklyAllocation
-        const weeklyDcAllocationBytes = anyToBytes(weeklyAllocationRequestedByClient.toString());
-        const totaldDcRequestedByClientBytes = anyToBytes(totaldDcRequestedByClient.toString());
-        // const tenPercentAllocationBytes = anyToBytes(totaldDcRequestedByClient.toString()) * 0.1;
-        // const allocation = weeklyDcAllocationBytes <= tenPercentAllocationBytes ? weeklyDcAllocationBytes : tenPercentAllocationBytes;
-        // const allocationRule = weeklyDcAllocationBytes <= tenPercentAllocationBytes ? "weekly" : "percentageDatacap";
+    const cleanedRawIssues = rawIssues.filter((issue: any) => checkLabel(issue) && checkRequestAndReturnRequest(requestListForEachIssue, issue).isValid)
 
-        //Parse dc requested msig notary address and  client address
-        const requestList = await findDatacapRequested(issueComments);
-        const lastRequest = requestList[requestList.length - 1];
-        const requestNumber = requestList.length;
+    const datacapRequestedByEachClientArr = cleanedRawIssues.map((issue: any) => {
+      return {
+        issueNumber: issue.number,
+        totaldDcRequestedByClient: parseIssue(issue.body).datacapRequested,
+        totaldDcRequestedByClientBytes: anyToBytes(parseIssue(issue.body).datacapRequested.toString()),
+        weeklyAllocationRequestedByClient: parseIssue(issue.body).dataCapWeeklyAllocation,
+        weeklyDcAllocationBytes: anyToBytes(parseIssue(issue.body).dataCapWeeklyAllocation.toString())
+      }
+    })
 
-        if (lastRequest === undefined) {
-          logGeneral(`Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`);
-          continue;
-        }
-        if (!lastRequest.allocationDatacap && !lastRequest.clientAddress) {
-          logGeneral(`Issue number ${issue.number} skipped --> DataCap allocation requested comment is not present`);
-          continue;
-        }
-        if (!lastRequest.clientAddress) {
-          logGeneral(`Issue number ${issue.number} skipped --> clientAddress not found after parsing the comments`);
-          continue;
-        }
-        if (!lastRequest.allocationDatacap) {
-          logGeneral(`Issue number ${issue.number} skipped --> datacapAllocated not found after parsing the comments`);
-          continue;
-        }
+    const allClientsFromApi = await Promise.all(cleanedRawIssues.map((issue: any) => {
+      return new Promise<any>(async (resolve, reject) => {
+        const clientAllowanceObj = await axios({
+          method: "GET",
+          url: `${config.filpusApi}/getAllowanceForAddress/${parseIssue(issue.body).address}`,
+          headers: {
+            "x-api-key": config.filplusApiKey,
+          },
+        });
 
-        //Check datacap remaining for this address
-
-        const client = clientsByVerifierRes.data.data.find((item: any) => item.address == lastRequest.clientAddress);
-        if (!client) {
-          logGeneral(`Issue number ${issue.number} skipped --> dc not allocated yet`);
-          continue;
-        }
-
-        const totalDcGrantedForClientSoFar = client.allowanceArray.reduce((s: number, item: any) => s + parseInt(item.allowance), 0)
-        // console.log("reduce", totalDcGrantedForClientSoFar)
-
-        //get remaining datacap for the client
-        let clientAllowanceObj: any = {}
-        try {
-          clientAllowanceObj = await axios({
-            method: "GET",
-            url: `${config.filpusApi}/getAllowanceForAddress/${lastRequest.clientAddress}`,
-            headers: {
-              "x-api-key": config.filplusApiKey,
-            },
-          });
-
-        } catch (error) {
-          console.log(error)
-        }
-
-        const dataCapAllocatedConvert = lastRequest.allocationDatacap.endsWith("B") ? anyToBytes(lastRequest.allocationDatacap) : lastRequest.allocationDatacap;
-
-        const dataCapAllocatedBytes = Number(dataCapAllocatedConvert);
-        let dataCapRemainingBytes = 0
+        let dataCapRemainingBytes = parseInt(clientAllowanceObj.data.allowance);
 
         if (!clientAllowanceObj?.data || !clientAllowanceObj.data.allowance) {
+
           let actorAddress: any = ""
-          if (lastRequest.clientAddress.startsWith("f1")) {
-            actorAddress = await api.actorAddress(lastRequest.clientAddress)
+          if (parseIssue(issue.body).address.startsWith("f1")) {
+            actorAddress = await api.actorAddress(parseIssue(issue.body).address)
           } else {
-            actorAddress = await api.cachedActorAddress(lastRequest.clientAddress)
+            actorAddress = await api.cachedActorAddress(parseIssue(issue.body).address)
           }
           const checkClient = await api.checkClient(actorAddress)
-          dataCapRemainingBytes = parseInt(checkClient[0].datacap)
-          if (!dataCapRemainingBytes) {
-            logError(`Issue n ${issue.number} - the remaining datacap for this issue cannot be retrieved.`)
-            continue
+
+          if (!checkClient[0]) {
+            // logError(`${LOG_PREFIX} ${issue.number} - the remaining datacap for this issue cannot be retrieved.`)
+            resolve({
+              issueNumber: issue.number,
+              dataCapRemainingBytes: -1
+            })
+          } else {
+            dataCapRemainingBytes = parseInt(checkClient[0].datacap)
           }
-        }else{
-          dataCapRemainingBytes = parseInt(clientAllowanceObj.data.allowance);
+
         }
+        dataCapRemainingBytes = parseInt(clientAllowanceObj.data.allowance);
 
-        const margin = dataCapRemainingBytes / dataCapAllocatedBytes;
-        logGeneral(`Issue n ${issue.number} margin: ${margin}`);
-
-        const dcAllocationRequested = calculateAllocationToRequest(
-          requestNumber,
-          totalDcGrantedForClientSoFar,
-          totaldDcRequestedByClientBytes,
-          weeklyDcAllocationBytes,
-          issue.number
-        );
-
-        // retrieve last 2 signers to put in stat comment
-        const lastTwoSigners: string[] = retrieveLastTwoSigners(
-          issueComments,
-          issue.number
-        );
-
-        const info: IssueInfo = {
+        resolve({
           issueNumber: issue.number,
-          msigAddress: lastRequest.notaryAddress,
-          address: lastRequest.clientAddress,
-          actorAddress: client.addressId ? client.addressId : client.address,
-          dcAllocationRequested: dcAllocationRequested.amount,
-          remainingDatacap: bytesToiB(dataCapRemainingBytes),
-          lastTwoSigners,
-          topProvider: client.topProvider || "0",
-          nDeals: client.dealCount || "0",
-          previousDcAllocated: lastRequest.allocationDatacap || "not found",
-          nStorageProviders: client.providerCount || "0",
-          clientName: client.name || "not found",
-          verifierAddressId: client.verifierAddressId || "not found",
-          verifierName: client.verifierName || "not found",
-          totalDcGrantedForClientSoFar: bytesToiB(totalDcGrantedForClientSoFar),
-          totaldDcRequestedByClient,
-          deltaTotalDcAndDatacapGranted: bytesToiB(anyToBytes(totaldDcRequestedByClient.toString()) - totalDcGrantedForClientSoFar),
-          rule: dcAllocationRequested.rule
+          dataCapRemainingBytes
+        })
+      })
+    }))
+    const allClientsFromApiCleaned = allClientsFromApi.filter((item: any) => item.dataCapRemainingBytes !== -1)
 
-        };
-
-        // if (margin <= 0.25) {
-        //   // if (issue.number === 84) {// ***USED FOR TEST***
-
-        //   const body = newAllocationRequestComment(
-        //     info.address,
-        //     info.dcAllocationRequested,
-        //     "90TiB",
-        //     info.msigAddress,
-        //     requestNumber
-        //   );
-
-        //   logGeneral(`CREATE REQUEST COMMENT issue number ${info.issueNumber}`);
-
-        //   const commentResult = await octokit.issues.createComment({
-        //     owner,
-        //     repo,
-        //     issue_number: info.issueNumber,
-        //     body,
-        //   });
-
-        //   if (commentResult.status === 201) {
-        //     await octokit.issues.removeAllLabels({
-        //       owner,
-        //       repo,
-        //       issue_number: info.issueNumber,
-        //     });
-
-        //     await octokit.issues.addLabels({
-        //       owner,
-        //       repo,
-        //       issue_number: info.issueNumber,
-        //       labels: ["bot:readyToSign"],
-        //     });
-        //   }
-
-        //   //METRICS
-        //   const params: MetricsApiParams = {
-        //     name: info.clientName,
-        //     clientAddress: info.address,
-        //     msigAddress: info.msigAddress,
-        //     amount: info.dcAllocationRequested,
-        //   };
-        //   await callMetricsApi(
-        //     info.issueNumber,
-        //     EVENT_TYPE.SUBSEQUENT_DC_REQUEST,
-        //     params
-        //   ); //TEST
-        //   logGeneral(`issue n ${issue.number}, posted subsequent allocation comment.`
-        //   );
-        //   issueInfoList.push(info);
-        // }
-      } catch (error) {
-        logError(` Error, issue n ${issue.number}: ${error} - **Please, check that the datacap for the issue client has been granted**`);
-        continue;
+    for (const issue of cleanedRawIssues) {
+      if (!allClientsFromApiCleaned.find((item: any) => item.issueNumber === issue.number)) {
+        logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> can't find datacap for this client`);
+        continue
       }
+
+      const requestList = requestListForEachIssue.find((requestItem: any) => requestItem.issueNumber === issue.number).requestList
+      const lastRequest = requestList[requestList.length - 1];
+      const requestNumber = requestList.length;
+
+      const client = clientsByVerifierRes.data.data.find((item: any) => item.address == lastRequest.clientAddress);
+      if (!client) {
+        logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> dc not allocated yet`);
+        continue
+      }
+
+      // somehow the api return sometimes a worng allowance array with duplicates alloowances, filter this array to contain only one object each msgCID
+      const set = new Set();
+      const totalDcGrantedForClientSoFar = client.allowanceArray
+        .filter((item: any) => {
+          if (set.has(item.msgCID)) return false;
+          set.add(item.msgCID);
+          return true;
+        })
+        .reduce((s: number, item: any) => s + parseInt(item.allowance), 0)
+
+      const lastRequestDataCapAllocatedConvert = lastRequest.allocationDatacap.endsWith("B") ? anyToBytes(lastRequest.allocationDatacap) : lastRequest.allocationDatacap;
+
+      const dataCapAllocatedBytes = Number(lastRequestDataCapAllocatedConvert);
+      const dataCapRemainingBytes = allClientsFromApiCleaned.find((item: any) => item.issueNumber === issue.number).dataCapRemainingBytes
+
+      const margin = dataCapRemainingBytes / dataCapAllocatedBytes;
+      logGeneral(`${LOG_PREFIX} ${issue.number} datacap remaining / datacp allocated: ${(margin * 100).toFixed(2)} %`);
+
+      const dcAllocationRequested = calculateAllocationToRequest(
+        requestNumber,
+        totalDcGrantedForClientSoFar,
+        datacapRequestedByEachClientArr.find((item: any) => item.issueNumber === issue.number).totaldDcRequestedByClientBytes,
+        datacapRequestedByEachClientArr.find((item: any) => item.issueNumber === issue.number).weeklyDcAllocationBytes,
+        issue.number
+      );
+
+      if (dcAllocationRequested.totalDatacapReached) {
+        console.log("The issue reached the total datacap requested. This should be closed")
+        issueInfoListClosed.push(issue.number)
+        promArr.push(new Promise<void>(async (resolve, reject) => {
+          await octokit.issues.createComment({
+              owner,
+              repo,
+              issue_number: issue.number,
+              body:`The issue reached the total datacap requested. This should be closed`,
+            });
+          await octokit.issues.addLabels({
+                owner,
+                repo,
+                issue_number: issue.number,
+                labels: ["issue:TotalDcReached"],
+              });
+          //METRICS
+            // const params: MetricsApiParams = {
+            //   name: info.clientName,
+            //   clientAddress: info.address,
+            //   msigAddress: info.msigAddress,
+            //   amount: info.dcAllocationRequested,
+            // };
+            // await callMetricsApi(
+            //   info.issueNumber,
+            //   EVENT_TYPE.TOTAL_DATACAP_REACHED,
+            //   params
+            // );
+          resolve()
+        }))
+        continue
+      }
+
+      promArr.push(new Promise<void>(async (resolve, reject) => {
+        try {
+
+          // retrieve last 2 signers to put in stat comment
+          const lastTwoSigners: string[] = retrieveLastTwoSigners(
+            commentsForEachIssue.find((item: any) => item.issueNumber === issue.number),
+            issue.number
+          );
+
+          const info: IssueInfo = {
+            issueNumber: issue.number,
+            msigAddress: lastRequest.notaryAddress,
+            address: lastRequest.clientAddress,
+            actorAddress: client.addressId ? client.addressId : client.address,
+            dcAllocationRequested: dcAllocationRequested.amount,
+            remainingDatacap: bytesToiB(dataCapRemainingBytes),
+            lastTwoSigners,
+            topProvider: client.topProvider || "0",
+            nDeals: client.dealCount || "0",
+            previousDcAllocated: lastRequest.allocationDatacap || "not found",
+            nStorageProviders: client.providerCount || "0",
+            clientName: client.name || "not found",
+            verifierAddressId: client.verifierAddressId || "not found",
+            verifierName: client.verifierName || "not found",
+            totalDcGrantedForClientSoFar: bytesToiB(totalDcGrantedForClientSoFar),
+            totaldDcRequestedByClient: datacapRequestedByEachClientArr.find((item: any) => item.issueNumber === issue.number).totaldDcRequestedByClient,
+            deltaTotalDcAndDatacapGranted: bytesToiB(
+              anyToBytes(datacapRequestedByEachClientArr.find((item: any) => item.issueNumber === issue.number).totaldDcRequestedByClient) - totalDcGrantedForClientSoFar),
+            rule: dcAllocationRequested.rule
+
+          };
+
+          if (margin <= 0.25) {
+            // if (issue.number === 84) {// ***USED FOR TEST***
+
+            const body = newAllocationRequestComment(
+              info.address,
+              info.dcAllocationRequested,
+              "90TiB",
+              info.msigAddress,
+              requestNumber
+            );
+
+            logGeneral(`CREATE REQUEST COMMENT ${LOG_PREFIX} ${info.issueNumber}`);
+
+            const commentResult = await octokit.issues.createComment({
+              owner,
+              repo,
+              issue_number: info.issueNumber,
+              body,
+            });
+
+            if (commentResult.status === 201) {
+              await octokit.issues.removeAllLabels({
+                owner,
+                repo,
+                issue_number: info.issueNumber,
+              });
+
+              await octokit.issues.addLabels({
+                owner,
+                repo,
+                issue_number: info.issueNumber,
+                labels: ["bot:readyToSign"],
+              });
+            }
+
+            // //METRICS
+            const params: MetricsApiParams = {
+              name: info.clientName,
+              clientAddress: info.address,
+              msigAddress: info.msigAddress,
+              amount: info.dcAllocationRequested,
+            };
+            await callMetricsApi(
+              info.issueNumber,
+              EVENT_TYPE.SUBSEQUENT_DC_REQUEST,
+              params
+            ); 
+            logGeneral(`${LOG_PREFIX} ${issue.number}, posted subsequent allocation comment.`
+            );
+            issueInfoList.push(info);
+          }
+          resolve()
+
+        } catch (error) {
+          reject(`Erorr, ${LOG_PREFIX} ${issue.number}: ${error}`)
+        }
+      }))
     }
-    // await commentStats(issueInfoList);
-    logGeneral(`Issue number 0 Subsequent-Allocation-Bot ended. Number of issues commented: ${issueInfoList.length}`);
-    logGeneral(`Issue number 0 Subsequent-Allocation-Bot - issues commented: ${issueInfoList.map((info: any) => info.issueNumber)}`);
+    await Promise.allSettled(promArr)
+    await commentStats(issueInfoList);
+    logGeneral(`${LOG_PREFIX} 0 Subsequent-Allocation-Bot ended. ${issueInfoList.length ? issueInfoList.length : 0} issues commented`);
+    logGeneral(`${LOG_PREFIX} 0 Subsequent-Allocation-Bot - commented issues number: ${issueInfoList.map((info: any) => info.issueNumber)}, ${issueInfoListClosed.map((num: any) => num)}`);
+    logGeneral(`${LOG_PREFIX} 0 Subsequent-Allocation-Bot - issues reaching the total datacap: ${issueInfoListClosed.map((num: any) => num)}`);
   } catch (error) {
-    logError("error listing the issues, generic error in the bot");
-    logError(error);
+    console.log("error listing the issues, generic error in the bot", error)
   }
 };
 
@@ -312,63 +416,64 @@ const commentStats = async (list: IssueInfo[]) => {
     const clients = apiClients.data.data;
 
     //get stats & comment
+    const promArr = []
     for (const info of list) {
-      // const apiElement = clients.find((item: any) => item.address === "f1ztll3caq5m3qivovzipywtzqc75ebgpz4vieyiq")
-      const apiElement = clients.find(
-        (item: any) => item.address === info.address
-      );
-      if (apiElement === undefined) {
-        throw new Error(
-          `Error, stat comment of issue n ${info.issueNumber} failed because the bot couldn't find the correspondent address in the filplus dashboard`
+      promArr.push(new Promise<void>(async (resolve, reject) => {
+        // const apiElement = clients.find((item: any) => item.address === "f1ztll3caq5m3qivovzipywtzqc75ebgpz4vieyiq")
+        const apiElement = clients.find(
+          (item: any) => item.address === info.address
         );
-      }
+        if (apiElement === undefined) {
+          throw new Error(
+            `Error, stat comment of ${LOG_PREFIX} ${info.issueNumber} failed because the bot couldn't find the correspondent address in the filplus dashboard`
+          );
+        }
 
-      const verifiers: any = await octokit.request(
-        `GET ${config.notariersJsonPath}`
-      );
-      const notaries = JSON.parse(verifiers.data).notaries;
+        const verifiers: any = await octokit.request(
+          `GET ${config.notariersJsonPath}`
+        );
+        const notaries = JSON.parse(verifiers.data).notaries;
 
-      const addresses = info.lastTwoSigners;
-      const githubHandles = addresses.map(
-        (addr: any) =>
-          notaries.find(
-            (notar: any) => notar.ldn_config.signing_address === addr
-          ).github_user[0]
-      );
+        const addresses = info.lastTwoSigners;
+        const githubHandles = addresses.map(
+          (addr: any) =>
+            notaries.find(
+              (notar: any) => notar.ldn_config.signing_address === addr
+            ).github_user[0]
+        );
 
-      // console.log("githubHandles", githubHandles)
-      const body = statsComment(
-        info.msigAddress,
-        info.address,
-        info.topProvider,
-        info.nDeals,
-        info.previousDcAllocated,
-        info.dcAllocationRequested,
-        info.nStorageProviders,
-        info.remainingDatacap,
-        info.actorAddress,
-        githubHandles,
-        info.totalDcGrantedForClientSoFar,
-        info.totaldDcRequestedByClient,
-        info.deltaTotalDcAndDatacapGranted,
-        info.rule
-      );
+        // console.log("githubHandles", githubHandles)
+        const body = statsComment(
+          info.msigAddress,
+          info.address,
+          info.topProvider,
+          info.nDeals,
+          info.previousDcAllocated,
+          info.dcAllocationRequested,
+          info.nStorageProviders,
+          info.remainingDatacap,
+          info.actorAddress,
+          githubHandles,
+          info.totalDcGrantedForClientSoFar,
+          info.totaldDcRequestedByClient,
+          info.deltaTotalDcAndDatacapGranted,
+          info.rule
+        );
 
-      try {
         // console.log("CREATE STATS COMMENT", info.issueNumber)
-        logGeneral(`CREATE STATS COMMENT, issue n ${info.issueNumber}`
-        );
         await octokit.issues.createComment({
           owner,
           repo,
           issue_number: info.issueNumber,
           body,
         });
-      } catch (error) {
-        logError(error);
-        continue;
-      }
+        logGeneral(`CREATE STATS COMMENT, issue n ${info.issueNumber}`);
+        logGeneral(`Posted stats comment, ${LOG_PREFIX} ${info.issueNumber}`);
+        resolve()
+      }))
     }
+
+    await Promise.allSettled(promArr)
   } catch (error) {
     logError(error);
   }
@@ -381,9 +486,9 @@ const calculateAllocationToRequest = (
   weeklyDcAllocationBytes: number,
   issueNumber: any
 ) => {
-  logDebug(`issue n ${issueNumber} weekly datacap requested by client: ${bytesToiB(weeklyDcAllocationBytes)} ${weeklyDcAllocationBytes}B`)
+  logDebug(`${LOG_PREFIX} ${issueNumber} weekly datacap requested by client: ${bytesToiB(weeklyDcAllocationBytes)} ${weeklyDcAllocationBytes}B`)
 
-  logDebug(`issue n ${issueNumber} total datacap requested by client: ${bytesToiB(totaldDcRequestedByClient)}, ${totaldDcRequestedByClient}B`)
+  logDebug(`${LOG_PREFIX} ${issueNumber} total datacap requested by client: ${bytesToiB(totaldDcRequestedByClient)}, ${totaldDcRequestedByClient}B`)
 
 
   let nextRequest = 0;
@@ -423,25 +528,36 @@ const calculateAllocationToRequest = (
 
 
   const sumTotalAmountWithNextRequest = nextRequest + totalDcGrantedForClientSoFar
-  logDebug(`issue n ${issueNumber} sumTotalAmountWithNextRequest (sum next request + total datcap granted to client so far): ${bytesToiB(sumTotalAmountWithNextRequest)}`)
+  logDebug(`${LOG_PREFIX} ${issueNumber} sumTotalAmountWithNextRequest (sum next request + total datcap granted to client so far): ${bytesToiB(sumTotalAmountWithNextRequest)}`)
 
+  let retObj: any = {}
   if (sumTotalAmountWithNextRequest > totaldDcRequestedByClient) {
-    logDebug(`issue n ${issueNumber} sumTotalAmountWithNextRequest is higher than total datacap requested by client (${totaldDcRequestedByClient}, requesting the difference of total dc requested - total datacap granted so far)`)
+    logDebug(`${LOG_PREFIX} ${issueNumber} sumTotalAmountWithNextRequest is higher than total datacap requested by client (${totaldDcRequestedByClient}, requesting the difference of total dc requested - total datacap granted so far)`)
+    // console.log("totaldDcRequestedByClient", totaldDcRequestedByClient)
+    // console.log("totalDcGrantedForClientSoFar", totalDcGrantedForClientSoFar)
     nextRequest = totaldDcRequestedByClient - totalDcGrantedForClientSoFar
+    // console.log("nextRequest in if", nextRequest)
+  }
+  if (nextRequest <= 0) {
+    logDebug(`${LOG_PREFIX} ${issueNumber} - seems that the client reached the total datacap request in this issue. This should be checked and closed`)
+    retObj = { totalDatacapReached: true }
+    return retObj
   }
 
-  logDebug(`issue n ${issueNumber} nextRequest ${bytesToiB(Math.floor(nextRequest))}`)
-  logDebug(`issue n ${issueNumber} allocation rule: ${rule}`)
-  const retObj = {
+
+  logDebug(`${LOG_PREFIX} ${issueNumber} nextRequest ${bytesToiB(nextRequest)}`)
+  logDebug(`${LOG_PREFIX} ${issueNumber} allocation rule: ${rule}`)
+  retObj = {
     amount: bytesToiB(Math.floor(nextRequest)),
-    rule
+    rule,
+    totalDatacapReached: false
   }
 
   return retObj
 };
 
 const findDatacapRequested = async (
-  issueComments: any
+  issueComments: any[]
 ): Promise<
   {
     multisigMessage: boolean;
@@ -485,7 +601,7 @@ const retrieveLastTwoSigners = (
     }
     return requestList;
   } catch (error) {
-    logGeneral(`Error, issue n ${issueNumber}, error retrieving the last 2 signers. ${error}`
+    logGeneral(`Error, ${LOG_PREFIX} ${issueNumber}, error retrieving the last 2 signers. ${error}`
     );
   }
 };

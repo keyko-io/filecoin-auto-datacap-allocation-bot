@@ -7,6 +7,7 @@ export enum EVENT_TYPE {
     FIRST_DC_REQUEST = "first_datacap_request",
     DC_ALLOCATION = "datacap_allocation",
     SUBSEQUENT_DC_REQUEST = "subsequent_datacap_request",
+    TOTAL_DATACAP_REACHED = "total_datacap_reached",
 }
 
 /**
