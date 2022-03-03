@@ -150,27 +150,24 @@ const allocationDatacap = async () => {
 
 
     const commentsForEachIssue = await Promise.all(
-      rawIssues.map((issue: any) => new Promise<any>(async (resolve, reject) => {
+      rawIssues.map(async (issue: any) => {
         const comments = await octokit.paginate(octokit.rest.issues.listComments,
           {
             owner,
             repo,
             issue_number: issue.number,
           })
-        resolve({ issueNumber: issue.number, comments })
-      })
-      ))
+        return { issueNumber: issue.number, comments }
+      }))
 
     const requestListForEachIssue = await Promise.all(
-      commentsForEachIssue.map((issue: any) => {
-        return new Promise<any>(async (resolve, reject) => {
-          const issueNumber = issue.issueNumber
-          const requestList = await findDatacapRequested(issue.comments)
-          resolve(
-            { issueNumber, requestList }
-          )
-        })
-      })
+      commentsForEachIssue.map(async (issue: any) => {
+        return {
+          issueNumber: issue.issueNumber,
+          requestList: await findDatacapRequested(issue.comments)
+        }
+      }
+      )
     )
 
     const cleanedRawIssues = rawIssues.filter((issue: any) => checkLabel(issue) && checkRequestAndReturnRequest(requestListForEachIssue, issue).isValid)
@@ -185,47 +182,46 @@ const allocationDatacap = async () => {
       }
     })
 
-    const allClientsFromApi = await Promise.all(cleanedRawIssues.map((issue: any) => {
-      return new Promise<any>(async (resolve, reject) => {
-        const clientAllowanceObj = await axios({
-          method: "GET",
-          url: `${config.filpusApi}/getAllowanceForAddress/${parseIssue(issue.body).address}`,
-          headers: {
-            "x-api-key": config.filplusApiKey,
-          },
-        });
+    const allClientsFromApi = await Promise.all(cleanedRawIssues.map(async (issue: any) => {
+      const clientAllowanceObj = await axios({
+        method: "GET",
+        url: `${config.filpusApi}/getAllowanceForAddress/${parseIssue(issue.body).address}`,
+        headers: {
+          "x-api-key": config.filplusApiKey,
+        },
+      });
 
-        let dataCapRemainingBytes = parseInt(clientAllowanceObj.data.allowance);
+      let dataCapRemainingBytes = parseInt(clientAllowanceObj.data.allowance);
 
-        if (!clientAllowanceObj?.data || !clientAllowanceObj.data.allowance) {
+      if (!clientAllowanceObj?.data || !clientAllowanceObj.data.allowance) {
 
-          let actorAddress: any = ""
-          if (parseIssue(issue.body).address.startsWith("f1")) {
-            actorAddress = await api.actorAddress(parseIssue(issue.body).address)
-          } else {
-            actorAddress = await api.cachedActorAddress(parseIssue(issue.body).address)
-          }
-          const checkClient = await api.checkClient(actorAddress)
-
-          if (!checkClient[0]) {
-            // logError(`${LOG_PREFIX} ${issue.number} - the remaining datacap for this issue cannot be retrieved.`)
-            resolve({
-              issueNumber: issue.number,
-              dataCapRemainingBytes: -1
-            })
-          } else {
-            dataCapRemainingBytes = parseInt(checkClient[0].datacap)
-          }
-
+        let actorAddress: any = ""
+        if (parseIssue(issue.body).address.startsWith("f1")) {
+          actorAddress = await api.actorAddress(parseIssue(issue.body).address)
+        } else {
+          actorAddress = await api.cachedActorAddress(parseIssue(issue.body).address)
         }
-        dataCapRemainingBytes = parseInt(clientAllowanceObj.data.allowance);
+        const checkClient = await api.checkClient(actorAddress)
 
-        resolve({
-          issueNumber: issue.number,
-          dataCapRemainingBytes
-        })
-      })
+        if (!checkClient[0]) {
+          logError(`${LOG_PREFIX} ${issue.number} - the remaining datacap for this issue cannot be retrieved.`)
+          return {
+            issueNumber: issue.number,
+            dataCapRemainingBytes: -1
+          }
+        } else {
+          dataCapRemainingBytes = parseInt(checkClient[0].datacap)
+        }
+
+      }
+      dataCapRemainingBytes = parseInt(clientAllowanceObj.data.allowance);
+
+      return {
+        issueNumber: issue.number,
+        dataCapRemainingBytes
+      }
     }))
+
     const allClientsFromApiCleaned = allClientsFromApi.filter((item: any) => item.dataCapRemainingBytes !== -1)
 
     for (const issue of cleanedRawIssues) {
@@ -275,29 +271,29 @@ const allocationDatacap = async () => {
         issueInfoListClosed.push(issue.number)
         promArr.push(new Promise<void>(async (resolve, reject) => {
           await octokit.issues.createComment({
-              owner,
-              repo,
-              issue_number: issue.number,
-              body:`The issue reached the total datacap requested. This should be closed`,
-            });
+            owner,
+            repo,
+            issue_number: issue.number,
+            body: `The issue reached the total datacap requested. This should be closed`,
+          });
           await octokit.issues.addLabels({
-                owner,
-                repo,
-                issue_number: issue.number,
-                labels: ["issue:TotalDcReached"],
-              });
+            owner,
+            repo,
+            issue_number: issue.number,
+            labels: ["issue:TotalDcReached"],
+          });
           //METRICS
-            // const params: MetricsApiParams = {
-            //   name: info.clientName,
-            //   clientAddress: info.address,
-            //   msigAddress: info.msigAddress,
-            //   amount: info.dcAllocationRequested,
-            // };
-            // await callMetricsApi(
-            //   info.issueNumber,
-            //   EVENT_TYPE.TOTAL_DATACAP_REACHED,
-            //   params
-            // );
+          // const params: MetricsApiParams = {
+          //   name: info.clientName,
+          //   clientAddress: info.address,
+          //   msigAddress: info.msigAddress,
+          //   amount: info.dcAllocationRequested,
+          // };
+          // await callMetricsApi(
+          //   info.issueNumber,
+          //   EVENT_TYPE.TOTAL_DATACAP_REACHED,
+          //   params
+          // );
           resolve()
         }))
         continue
@@ -354,7 +350,6 @@ const allocationDatacap = async () => {
               issue_number: info.issueNumber,
               body,
             });
-
             if (commentResult.status === 201) {
               await octokit.issues.removeAllLabels({
                 owner,
@@ -381,7 +376,7 @@ const allocationDatacap = async () => {
               info.issueNumber,
               EVENT_TYPE.SUBSEQUENT_DC_REQUEST,
               params
-            ); 
+            );
             logGeneral(`${LOG_PREFIX} ${issue.number}, posted subsequent allocation comment.`
             );
             issueInfoList.push(info);
