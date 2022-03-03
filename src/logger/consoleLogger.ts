@@ -1,5 +1,5 @@
 
-const ENVIRONMENT = process.env.ENVIRONMENT
+const ENVIRONMENT = process.env.LOGGER_ENVIRONMENT
 const PHASE = `Subsequent Allocation`;
 
 export const logGeneral = (message: string): void => {
