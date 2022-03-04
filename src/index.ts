@@ -1,6 +1,6 @@
 import { Octokit } from "@octokit/rest";
 import { config } from "./config";
-import { bytesToiB, anyToBytes } from "./utils";
+import { bytesToiB, anyToBytes, checkRequestAndReturnRequest, commentsForEachIssue } from "./utils";
 import { newAllocationRequestComment, statsComment } from "./comments";
 import VerifyAPI from "@keyko-io/filecoin-verifier-tools/api/api.js";
 import {
@@ -13,31 +13,13 @@ import { createAppAuth } from "@octokit/auth-app";
 import { EVENT_TYPE, MetricsApiParams } from "./Metrics";
 import { logGeneral, logWarn, logDebug, logError } from './logger/consoleLogger'
 const { callMetricsApi, } = require("@keyko-io/filecoin-verifier-tools/metrics/metrics");
-
+import { checkLabel } from "./utils";
+import { IssueInfo } from "./types";
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
 // const PHASE = `Subsequent Allocation`;
 
-type IssueInfo = {
-  issueNumber: number;
-  msigAddress: string;
-  address: string;
-  actorAddress: string;
-  dcAllocationRequested: string;
-  remainingDatacap: string;
-  previousDcAllocated?: string;
-  nDeals?: string;
-  nStorageProviders?: string;
-  verifierAddressId?: string;
-  verifierName?: string;
-  clientName?: string;
-  topProvider?: string;
-  lastTwoSigners?: string[];
-  totalDcGrantedForClientSoFar?: string
-  totaldDcRequestedByClient?: string
-  deltaTotalDcAndDatacapGranted?: string
-  rule?: string
-};
+
 
 const api = new VerifyAPI( // eslint-disable-line
   VerifyAPI.standAloneProvider(
@@ -67,67 +49,9 @@ const octokit = new Octokit({
   },
 });
 
-enum LabelsEnum {
-  READY_TO_SIGN = "bot:readyToSign",
-  NEED_DILIGENCE = "status:needsDiligence",
-  ERROR = "status:Error",
-  TOTAL_DC_REACHED = "issue:TotalDcReached"
-}
-const LOG_PREFIX = `Issue number`
-
-const checkLabel = (issue: any) => {
-  if (issue.labels.find((item: any) => item.name === LabelsEnum.READY_TO_SIGN)) {
-    logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> ${LabelsEnum.READY_TO_SIGN} is present`);
-    return false
-  }
-  if (
-    issue.labels.find((item: any) => item.name === LabelsEnum.NEED_DILIGENCE)) {
-    logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> ${LabelsEnum.NEED_DILIGENCE} is present`);
-    return false
-  }
-  if (issue.labels.find((item: any) => item.name === LabelsEnum.ERROR)) {
-    logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> ${LabelsEnum.ERROR} is present`);
-    return false
-  }
-  if (issue.labels.find((item: any) => item.name === LabelsEnum.TOTAL_DC_REACHED)) {
-    logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> ${LabelsEnum.TOTAL_DC_REACHED} is present`);
-    return false
-  }
-  return true
-}
-
-const checkRequestAndReturnRequest = (requestListForEachIssue: any[], issue: any) => {
-
-  const requestList = requestListForEachIssue.find((requestItem: any) => requestItem.issueNumber == issue.number).requestList
-  const lastRequest = requestList[requestList.length - 1];
-  const requestNumber = requestListForEachIssue.length;
-
-  if (lastRequest === undefined) {
-    logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> DataCap allocation requested comment is not present`);
-    return { isValid: false }
-  }
-  if (!lastRequest.allocationDatacap && !lastRequest.clientAddress) {
-    logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> DataCap allocation requested comment is not present`);
-    return { isValid: false }
-  }
-  if (!lastRequest.clientAddress) {
-    logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> clientAddress not found after parsing the comments`);
-    return { isValid: false }
-  }
-  if (!lastRequest.allocationDatacap) {
-    logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> datacapAllocated not found after parsing the comments`);
-    return { isValid: false }
-  }
-  return {
-    isValid: true,
-    lastRequest,
-    requestNumber
-  }
-}
-
 const allocationDatacap = async () => {
   try {
-    logGeneral(`${LOG_PREFIX} 0 Subsequent-Allocation-Bot started.`);
+    logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot started.`);
 
     const clientsByVerifierRes = await axios({
       method: "GET",
@@ -145,23 +69,14 @@ const allocationDatacap = async () => {
 
     let issueInfoList: IssueInfo[] = [];
     let issueInfoListClosed = [];
-    logGeneral(`${LOG_PREFIX} 0 Number of fetched comments: ${rawIssues.length}`);
+    logGeneral(`${config.LOG_PREFIX} 0 Number of fetched comments: ${rawIssues.length}`);
     const promArr = []
 
 
-    const commentsForEachIssue = await Promise.all(
-      rawIssues.map(async (issue: any) => {
-        const comments = await octokit.paginate(octokit.rest.issues.listComments,
-          {
-            owner,
-            repo,
-            issue_number: issue.number,
-          })
-        return { issueNumber: issue.number, comments }
-      }))
+    const commentsEachIssue = await commentsForEachIssue(octokit,rawIssues)
 
     const requestListForEachIssue = await Promise.all(
-      commentsForEachIssue.map(async (issue: any) => {
+      commentsEachIssue.map(async (issue: any) => {
         return {
           issueNumber: issue.issueNumber,
           requestList: await findDatacapRequested(issue.comments)
@@ -204,7 +119,7 @@ const allocationDatacap = async () => {
         const checkClient = await api.checkClient(actorAddress)
 
         if (!checkClient[0]) {
-          logError(`${LOG_PREFIX} ${issue.number} - the remaining datacap for this issue cannot be retrieved.`)
+          logError(`${config.LOG_PREFIX} ${issue.number} - the remaining datacap for this issue cannot be retrieved.`)
           return {
             issueNumber: issue.number,
             dataCapRemainingBytes: -1
@@ -226,7 +141,7 @@ const allocationDatacap = async () => {
 
     for (const issue of cleanedRawIssues) {
       if (!allClientsFromApiCleaned.find((item: any) => item.issueNumber === issue.number)) {
-        logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> can't find datacap for this client`);
+        logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> can't find datacap for this client`);
         continue
       }
 
@@ -236,7 +151,7 @@ const allocationDatacap = async () => {
 
       const client = clientsByVerifierRes.data.data.find((item: any) => item.address == lastRequest.clientAddress);
       if (!client) {
-        logGeneral(`${LOG_PREFIX} ${issue.number} skipped --> dc not allocated yet`);
+        logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> dc not allocated yet`);
         continue
       }
 
@@ -256,7 +171,7 @@ const allocationDatacap = async () => {
       const dataCapRemainingBytes = allClientsFromApiCleaned.find((item: any) => item.issueNumber === issue.number).dataCapRemainingBytes
 
       const margin = dataCapRemainingBytes / dataCapAllocatedBytes;
-      logGeneral(`${LOG_PREFIX} ${issue.number} datacap remaining / datacp allocated: ${(margin * 100).toFixed(2)} %`);
+      logGeneral(`${config.LOG_PREFIX} ${issue.number} datacap remaining / datacp allocated: ${(margin * 100).toFixed(2)} %`);
 
       const dcAllocationRequested = calculateAllocationToRequest(
         requestNumber,
@@ -304,7 +219,7 @@ const allocationDatacap = async () => {
 
           // retrieve last 2 signers to put in stat comment
           const lastTwoSigners: string[] = retrieveLastTwoSigners(
-            commentsForEachIssue.find((item: any) => item.issueNumber === issue.number),
+            commentsEachIssue.find((item: any) => item.issueNumber === issue.number),
             issue.number
           );
 
@@ -342,7 +257,7 @@ const allocationDatacap = async () => {
               requestNumber
             );
 
-            logGeneral(`CREATE REQUEST COMMENT ${LOG_PREFIX} ${info.issueNumber}`);
+            logGeneral(`CREATE REQUEST COMMENT ${config.LOG_PREFIX} ${info.issueNumber}`);
 
             const commentResult = await octokit.issues.createComment({
               owner,
@@ -377,22 +292,22 @@ const allocationDatacap = async () => {
               EVENT_TYPE.SUBSEQUENT_DC_REQUEST,
               params
             );
-            logGeneral(`${LOG_PREFIX} ${issue.number}, posted subsequent allocation comment.`
+            logGeneral(`${config.LOG_PREFIX} ${issue.number}, posted subsequent allocation comment.`
             );
             issueInfoList.push(info);
           }
           resolve()
 
         } catch (error) {
-          reject(`Erorr, ${LOG_PREFIX} ${issue.number}: ${error}`)
+          reject(`Erorr, ${config.LOG_PREFIX} ${issue.number}: ${error}`)
         }
       }))
     }
     await Promise.allSettled(promArr)
     await commentStats(issueInfoList);
-    logGeneral(`${LOG_PREFIX} 0 Subsequent-Allocation-Bot ended. ${issueInfoList.length ? issueInfoList.length : 0} issues commented`);
-    logGeneral(`${LOG_PREFIX} 0 Subsequent-Allocation-Bot - commented issues number: ${issueInfoList.map((info: any) => info.issueNumber)}, ${issueInfoListClosed.map((num: any) => num)}`);
-    logGeneral(`${LOG_PREFIX} 0 Subsequent-Allocation-Bot - issues reaching the total datacap: ${issueInfoListClosed.map((num: any) => num)}`);
+    logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot ended. ${issueInfoList.length ? issueInfoList.length : 0} issues commented`);
+    logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot - commented issues number: ${issueInfoList.map((info: any) => info.issueNumber)}, ${issueInfoListClosed.map((num: any) => num)}`);
+    logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot - issues reaching the total datacap: ${issueInfoListClosed.map((num: any) => num)}`);
   } catch (error) {
     console.log("error listing the issues, generic error in the bot", error)
   }
@@ -420,7 +335,7 @@ const commentStats = async (list: IssueInfo[]) => {
         );
         if (apiElement === undefined) {
           throw new Error(
-            `Error, stat comment of ${LOG_PREFIX} ${info.issueNumber} failed because the bot couldn't find the correspondent address in the filplus dashboard`
+            `Error, stat comment of ${config.LOG_PREFIX} ${info.issueNumber} failed because the bot couldn't find the correspondent address in the filplus dashboard`
           );
         }
 
@@ -463,7 +378,7 @@ const commentStats = async (list: IssueInfo[]) => {
           body,
         });
         logGeneral(`CREATE STATS COMMENT, issue n ${info.issueNumber}`);
-        logGeneral(`Posted stats comment, ${LOG_PREFIX} ${info.issueNumber}`);
+        logGeneral(`Posted stats comment, ${config.LOG_PREFIX} ${info.issueNumber}`);
         resolve()
       }))
     }
@@ -481,9 +396,9 @@ const calculateAllocationToRequest = (
   weeklyDcAllocationBytes: number,
   issueNumber: any
 ) => {
-  logDebug(`${LOG_PREFIX} ${issueNumber} weekly datacap requested by client: ${bytesToiB(weeklyDcAllocationBytes)} ${weeklyDcAllocationBytes}B`)
+  logDebug(`${config.LOG_PREFIX} ${issueNumber} weekly datacap requested by client: ${bytesToiB(weeklyDcAllocationBytes)} ${weeklyDcAllocationBytes}B`)
 
-  logDebug(`${LOG_PREFIX} ${issueNumber} total datacap requested by client: ${bytesToiB(totaldDcRequestedByClient)}, ${totaldDcRequestedByClient}B`)
+  logDebug(`${config.LOG_PREFIX} ${issueNumber} total datacap requested by client: ${bytesToiB(totaldDcRequestedByClient)}, ${totaldDcRequestedByClient}B`)
 
 
   let nextRequest = 0;
@@ -523,25 +438,25 @@ const calculateAllocationToRequest = (
 
 
   const sumTotalAmountWithNextRequest = nextRequest + totalDcGrantedForClientSoFar
-  logDebug(`${LOG_PREFIX} ${issueNumber} sumTotalAmountWithNextRequest (sum next request + total datcap granted to client so far): ${bytesToiB(sumTotalAmountWithNextRequest)}`)
+  logDebug(`${config.LOG_PREFIX} ${issueNumber} sumTotalAmountWithNextRequest (sum next request + total datcap granted to client so far): ${bytesToiB(sumTotalAmountWithNextRequest)}`)
 
   let retObj: any = {}
   if (sumTotalAmountWithNextRequest > totaldDcRequestedByClient) {
-    logDebug(`${LOG_PREFIX} ${issueNumber} sumTotalAmountWithNextRequest is higher than total datacap requested by client (${totaldDcRequestedByClient}, requesting the difference of total dc requested - total datacap granted so far)`)
+    logDebug(`${config.LOG_PREFIX} ${issueNumber} sumTotalAmountWithNextRequest is higher than total datacap requested by client (${totaldDcRequestedByClient}, requesting the difference of total dc requested - total datacap granted so far)`)
     // console.log("totaldDcRequestedByClient", totaldDcRequestedByClient)
     // console.log("totalDcGrantedForClientSoFar", totalDcGrantedForClientSoFar)
     nextRequest = totaldDcRequestedByClient - totalDcGrantedForClientSoFar
     // console.log("nextRequest in if", nextRequest)
   }
   if (nextRequest <= 0) {
-    logDebug(`${LOG_PREFIX} ${issueNumber} - seems that the client reached the total datacap request in this issue. This should be checked and closed`)
+    logDebug(`${config.LOG_PREFIX} ${issueNumber} - seems that the client reached the total datacap request in this issue. This should be checked and closed`)
     retObj = { totalDatacapReached: true }
     return retObj
   }
 
 
-  logDebug(`${LOG_PREFIX} ${issueNumber} nextRequest ${bytesToiB(nextRequest)}`)
-  logDebug(`${LOG_PREFIX} ${issueNumber} allocation rule: ${rule}`)
+  logDebug(`${config.LOG_PREFIX} ${issueNumber} nextRequest ${bytesToiB(nextRequest)}`)
+  logDebug(`${config.LOG_PREFIX} ${issueNumber} allocation rule: ${rule}`)
   retObj = {
     amount: bytesToiB(Math.floor(nextRequest)),
     rule,
@@ -596,7 +511,7 @@ const retrieveLastTwoSigners = (
     }
     return requestList;
   } catch (error) {
-    logGeneral(`Error, ${LOG_PREFIX} ${issueNumber}, error retrieving the last 2 signers. ${error}`
+    logGeneral(`Error, ${config.LOG_PREFIX} ${issueNumber}, error retrieving the last 2 signers. ${error}`
     );
   }
 };
