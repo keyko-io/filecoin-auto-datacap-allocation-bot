@@ -31,10 +31,12 @@ const credentials = {
     "token_uri": "https://oauth2.googleapis.com/token",
     "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
     "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/ldn-bot%40vaulted-hangout-342008.iam.gserviceaccount.com"
-  }
+}
 
-const owner = config.githubLDNOwner;
-const repo = config.githubLDNRepo;
+const OWNER = config.githubLDNOwner;
+const REPO = config.githubLDNRepo;
+const SPREADSHEET_ID = '1VPp7ijhJYuDl1xNqosV1jm0sGkyKOGmcK4ujYtG8qZE'
+const SHEET_NAME = 'TestSheet'
 
 //TODO make those common
 const formatPK = () => {
@@ -61,66 +63,59 @@ const checkRepository = async () => {
 
 
     const rawIssues = await octokit.paginate(octokit.issues.listForRepo, {
-        owner,
-        repo
+        owner: OWNER,
+        repo: REPO
     });
 
     const commentsEachIssue: any = await commentsForEachIssue(octokit, rawIssues)
-    // console.log(commentsEachIssue)
 
     //loop each issue and check each event
-    const spreadsheetDataArray = 
-    await Promise.all(
-        rawIssues.map(async (issue: any) => {
-            const { number, body, title, labels, user, state, assignee, created_at, updated_at, closed_at } = issue
-            // console.log("issues keys", number, user)
-    
-            const parsedIssue = parseIssue(body)
-            // console.log("issue n:", number, "comments:", comments)
-            // parseMultisigNotaryRequest
-            let msigAddress = ""
-            let requestCount = 0
-            let comment: any = {}
-            const issueCommentsAndNumber: any = commentsEachIssue.find((item: any) => item.issueNumber === number)
-            for (comment of issueCommentsAndNumber.comments) {
-                // console.log("comment.body", comment)
-                const msigComment = await parseReleaseRequest(comment.body);
-                if (msigComment.correct) {
-                    msigAddress = msigComment.notaryAddress
-                    requestCount++
-                }
-            }
-    
-    
-            const spreadsheetData: spreadsheetData = {
-                issueNumber: number,
-                status: labels?.map((label: any) => label.name).toString() || "",
-                author: user?.login || "",
-                title,
-                isOpen: state,
-                assignee: assignee?.login || "",
-                created_at,
-                updated_at,
-                closed_at: closed_at ? closed_at : "",
-                clientName: parsedIssue?.name || "",
-                clientAddress: parsedIssue?.address || "",
-                msigAddress,
-                totalDataCapRequested: parsedIssue?.datacapRequested || "",
-                weeklyDataCapRequested: parsedIssue?.dataCapWeeklyAllocation || "",
-                numberOfRequests: String(requestCount),
-                
-            }
-            return spreadsheetData
-            // console.log("spreadsheetData", spreadsheetData)
-        })
-    )
+    const spreadsheetDataArray =
+        await Promise.all(
+            rawIssues.map(async (issue: any) => {
+                const { number, body, title, labels, user, state, assignee, created_at, updated_at, closed_at } = issue
 
-    // console.log("spreadsheetDataArray", spreadsheetDataArray)
-    run(credentials,spreadsheetDataArray)
+                const parsedIssue = parseIssue(body)
+                let msigAddress = ""
+                let requestCount = 0
+                let comment: any = {}
+                const issueCommentsAndNumber: any = commentsEachIssue.find((item: any) => item.issueNumber === number)
+                for (comment of issueCommentsAndNumber.comments) {
+                    const msigComment = await parseReleaseRequest(comment.body);
+                    if (msigComment.correct) {
+                        msigAddress = msigComment.notaryAddress
+                        requestCount++
+                    }
+                }
+
+
+                const spreadsheetData: spreadsheetData = {
+                    issueNumber: number,
+                    status: labels?.map((label: any) => label.name).toString() || "",
+                    author: user?.login || "",
+                    title,
+                    isOpen: state,
+                    assignee: assignee?.login || "",
+                    created_at,
+                    updated_at,
+                    closed_at: closed_at ? closed_at : "",
+                    clientName: parsedIssue?.name || "",
+                    clientAddress: parsedIssue?.address || "",
+                    msigAddress,
+                    totalDataCapRequested: parsedIssue?.datacapRequested || "",
+                    weeklyDataCapRequested: parsedIssue?.dataCapWeeklyAllocation || "",
+                    numberOfRequests: String(requestCount),
+
+                }
+                return spreadsheetData
+            })
+        )
+
+
+    run(credentials, SPREADSHEET_ID, SHEET_NAME, spreadsheetDataArray)
     console.log("spreadsheet filler executed")
 
 }
 
 
-// credentials
 checkRepository()
