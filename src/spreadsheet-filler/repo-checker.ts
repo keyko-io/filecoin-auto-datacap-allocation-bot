@@ -1,22 +1,21 @@
-//scratch the repository  send metrics and fill the spreadsheet
+//
+/**
+ * @info scratch the repository & fill the spreadsheet - ideally this is ran just at the creation of the spreadsheet
+ * @info to update a single row in the spreadsheet, create an object using the SpreadsheetData type, and call run() from the tools
+ * @info to call run(), you need to pass a SpreadsheetData wrapped within an array
+ */
 
 import { Octokit } from "@octokit/rest";
 import { config } from "../config";
-import { spreadsheetData } from '../types'
+import { SpreadsheetData } from '../types'
 import {
     parseReleaseRequest,
-    parseApprovedRequestWithSignerAddress,
     parseIssue,
 } from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
 import {
     run
 } from "../../deps/filecoin-verifier-tools/metrics/spreadsheetFiller"
-// } from "@keyko-io/filecoin-verifier-tools/metrics/spreadsheetFiller";
-import axios from "axios";
 import { createAppAuth } from "@octokit/auth-app";
-import { EVENT_TYPE, MetricsApiParams } from "../Metrics";
-import { parse } from "dotenv";
-const { callMetricsApi, } = require("@keyko-io/filecoin-verifier-tools/metrics/metrics");
 import { commentsForEachIssue } from '../utils'
 
 
@@ -59,12 +58,13 @@ const octokit = new Octokit({
     },
 });
 
-const checkRepository = async () => {
+const fillSpreadsheet = async () => {
 
 
     const rawIssues = await octokit.paginate(octokit.issues.listForRepo, {
         owner: OWNER,
-        repo: REPO
+        repo: REPO,
+        state: 'all'
     });
 
     const commentsEachIssue: any = await commentsForEachIssue(octokit, rawIssues)
@@ -89,12 +89,12 @@ const checkRepository = async () => {
                 }
 
 
-                const spreadsheetData: spreadsheetData = {
+                const spreadsheetData: SpreadsheetData = {
                     issueNumber: number,
                     status: labels?.map((label: any) => label.name).toString() || "",
                     author: user?.login || "",
                     title,
-                    isOpen: state,
+                    isOpen: state === 'open'? 'yes':'no',
                     assignee: assignee?.login || "",
                     created_at,
                     updated_at,
@@ -112,10 +112,9 @@ const checkRepository = async () => {
         )
 
 
-    run(credentials, SPREADSHEET_ID, SHEET_NAME, spreadsheetDataArray)
-    console.log("spreadsheet filler executed")
+    run(spreadsheetDataArray)
 
 }
 
 
-checkRepository()
+fillSpreadsheet()
