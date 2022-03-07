@@ -12,7 +12,8 @@
     "eslint-fix": "eslint 'src/**' --fix",
     "dev-start": "npm run build && npm start",
     "start": "node dist/index.js",
-    "update-deps": "git submodule update --remote deps/filecoin-verifier-tools"
+    "update-deps": "git submodule init && git submodule update --remote deps/filecoin-verifier-tools",
+    "repo-checker": "npm run build && node dist/spreadsheet-filler/repo-checker.js"
   },
   "author": "Fabrizio, Ivan",
   "license": "ISC",
