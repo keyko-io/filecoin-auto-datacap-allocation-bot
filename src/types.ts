@@ -1,4 +1,4 @@
-export type spreadsheetData = { //TODO update verifiet tools
+export type SpreadsheetData = { //TODO update verifiet tools
     issueNumber: string, 
     clientName?: string, //from body
     clientAddress?: string, //from body
