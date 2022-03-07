@@ -7,16 +7,13 @@
 
 import { Octokit } from "@octokit/rest";
 import { config } from "../config";
-import { SpreadsheetData } from '../types'
 import {
-    parseReleaseRequest,
-    parseIssue,
-} from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
-import {
-    run
+    runSpreadSheetFiller
 } from "../../deps/filecoin-verifier-tools/spreadsheet/spreadsheetFiller"
 import { createAppAuth } from "@octokit/auth-app";
-import { commentsForEachIssue } from '../utils'
+import {
+    prepareObject
+  } from "../../deps/filecoin-verifier-tools/spreadsheet/dataBuilder"
 
 const OWNER = config.githubLDNOwner;
 const REPO = config.githubLDNRepo;
@@ -51,54 +48,30 @@ const fillSpreadsheet = async () => {
         state: 'all'
     });
 
-    const commentsEachIssue: any = await commentsForEachIssue(octokit, rawIssues)
-
-    //loop each issue and check each event
-    const spreadsheetDataArray =
-        await Promise.all(
-            rawIssues.map(async (issue: any) => {
-                const { number, body, title, labels, user, state, assignee, created_at, updated_at, closed_at } = issue
-
-                const parsedIssue = parseIssue(body)
-                let msigAddress = ""
-                let requestCount = 0
-                let comment: any = {}
-                const issueCommentsAndNumber: any = commentsEachIssue.find((item: any) => item.issueNumber === number)
-                for (comment of issueCommentsAndNumber.comments) {
-                    const msigComment = await parseReleaseRequest(comment.body);
-                    if (msigComment.correct) {
-                        msigAddress = msigComment.notaryAddress
-                        requestCount++
-                    }
-                }
+    const spreadsheetDataArray = prepareObject(octokit, rawIssues)
 
 
-                const spreadsheetData: SpreadsheetData = {
-                    issueNumber: number,
-                    status: labels?.map((label: any) => label.name).toString() || "",
-                    author: user?.login || "",
-                    title,
-                    isOpen: state === 'open'? 'yes':'no',
-                    assignee: assignee?.login || "",
-                    created_at,
-                    updated_at,
-                    closed_at: closed_at ? closed_at : "",
-                    clientName: parsedIssue?.name || "",
-                    clientAddress: parsedIssue?.address || "",
-                    msigAddress,
-                    totalDataCapRequested: parsedIssue?.datacapRequested || "",
-                    weeklyDataCapRequested: parsedIssue?.dataCapWeeklyAllocation || "",
-                    numberOfRequests: String(requestCount),
-
-                }
-                return spreadsheetData
-            })
-        )
-
-
-    run([spreadsheetDataArray[0]])
+    runSpreadSheetFiller(spreadsheetDataArray)
 
 }
 
+/**
+ * @info used for test, create the issue to be updated and update the row in the spreadsheet
+ */
+const updateSpreadSheet = async () => {
+// const updateSpreadSheet = async (issueNumbers: IssueInfo[]) => {
+    const rawIssues = await octokit.paginate(octokit.issues.listForRepo, {
+      owner: OWNER,
+      repo: REPO,
+      state: 'all'
+    });
+    const issuesToUpdate = rawIssues.filter((issue:any)=> issue.number === 1)
 
-fillSpreadsheet()
+    // const issuesToUpdate = rawIssues.filter((issue:any)=> issueNumbers.includes(issue.number))
+    const issuesArray = await prepareObject(octokit,issuesToUpdate) 
+    // console.log("dataArray",issuesArray)
+    runSpreadSheetFiller(issuesArray)
+  }
+
+
+updateSpreadSheet()

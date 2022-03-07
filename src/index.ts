@@ -17,7 +17,13 @@ import { checkLabel } from "./utils";
 import { IssueInfo } from "./types";
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
-// const PHASE = `Subsequent Allocation`;
+import {
+  runSpreadSheetFiller,
+} from "../deps/filecoin-verifier-tools/spreadsheet/spreadsheetFiller"
+import {
+  prepareObject
+} from "../deps/filecoin-verifier-tools/spreadsheet/dataBuilder"
+
 
 
 
@@ -73,7 +79,7 @@ const allocationDatacap = async () => {
     const promArr = []
 
 
-    const commentsEachIssue = await commentsForEachIssue(octokit,rawIssues)
+    const commentsEachIssue = await commentsForEachIssue(octokit, rawIssues)
 
     const requestListForEachIssue = await Promise.all(
       commentsEachIssue.map(async (issue: any) => {
@@ -305,6 +311,8 @@ const allocationDatacap = async () => {
     }
     await Promise.allSettled(promArr)
     await commentStats(issueInfoList);
+    await updateSpreadSheet(issueInfoList.map((issue: any) => String(issue.issueNumber)))
+    await updateSpreadSheet(issueInfoListClosed.map((num: any) => String(num)))
     logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot ended. ${issueInfoList.length ? issueInfoList.length : 0} issues commented`);
     logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot - commented issues number: ${issueInfoList.map((info: any) => info.issueNumber)}, ${issueInfoListClosed.map((num: any) => num)}`);
     logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot - issues reaching the total datacap: ${issueInfoListClosed.map((num: any) => num)}`);
@@ -312,6 +320,21 @@ const allocationDatacap = async () => {
     console.log("error listing the issues, generic error in the bot", error)
   }
 };
+
+const updateSpreadSheet = async (issueNumbers: any[]) => {
+  const rawIssues = await octokit.paginate(octokit.issues.listForRepo, {
+    owner: owner,
+    repo: repo,
+    state: 'all'
+  });
+
+  const issuesToUpdate = rawIssues.filter((issue:any)=> issueNumbers.includes(String(issue.number)))
+  console.log("issuesToUpdate",issuesToUpdate)
+  if(!issuesToUpdate.length) return
+  const issuesArray = await prepareObject(issuesToUpdate) 
+  console.log("UPDATESPREADSHEET",issuesArray)
+  await runSpreadSheetFiller(issuesArray)
+}
 
 const commentStats = async (list: IssueInfo[]) => {
   try {
@@ -515,5 +538,7 @@ const retrieveLastTwoSigners = (
     );
   }
 };
+
+
 
 allocationDatacap();
