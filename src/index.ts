@@ -119,17 +119,12 @@ const allocationDatacap = async () => {
         const checkClient = await api.checkClient(actorAddress)
 
         if (!checkClient[0]) {
-          logError(`${config.LOG_PREFIX} ${issue.number} - the remaining datacap for this issue cannot be retrieved.`)
-          return {
-            issueNumber: issue.number,
-            dataCapRemainingBytes: -1
-          }
+          logWarn(`${config.LOG_PREFIX} ${issue.number} - It looks like the client has 0B datacap remaining.`)
+          dataCapRemainingBytes = 0
         } else {
           dataCapRemainingBytes = parseInt(checkClient[0].datacap)
         }
-
       }
-      dataCapRemainingBytes = parseInt(clientAllowanceObj.data.allowance);
 
       return {
         issueNumber: issue.number,
