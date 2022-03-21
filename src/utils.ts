@@ -34,14 +34,20 @@ export function anyToBytes(inputDatacap: string) {
 }
 
 export function bytesToiB(inputBytes: number) {
+  // const autoscale = byteConverter.autoScale(Number(inputBytes), 'B', { preferByte: true, preferBinary: true } as any)
   let autoscale = byteConverter.autoScale(inputBytes, 'B', { preferByte: true, preferBinary: true } as any)
-  //this is bc it cannot convert 1099511627776000 to 1PiB
+  //this is bc it cannot convert 1099511627776000 to 1PiB and it convert to 9 YiB
+  let stringVal = ''
   if (autoscale.dataFormat === "YiB") {
-    autoscale = byteConverter.autoScale(inputBytes - 32, 'B', { preferByte: true, preferBinary: true } as any)
-    return `${(autoscale.value / 1024).toFixed(1)}${"PiB"}`
+      autoscale = byteConverter.autoScale(inputBytes-32, 'B', { preferByte: true, preferBinary: true } as any)
+      return `${autoscale.value.toFixed(1)}${autoscale.dataFormat}`
+      // stringVal = String(autoscale.value)
+      // return `${stringVal.substring(0, stringVal.indexOf('.'))}${stringVal.substring(stringVal.indexOf('.'), stringVal.indexOf('.')+3)}${autoscale.dataFormat}`
   }
-  return `${autoscale.value}${autoscale.dataFormat}`
-  // return `${Number.isInteger(autoscale.value) ? autoscale.value : autoscale.value.toFixed(1)}${autoscale.dataFormat}`
+  stringVal = String(autoscale.value)
+
+  const indexOfDot = stringVal.indexOf('.')
+  return `${stringVal.substring(0, indexOfDot>0? indexOfDot : stringVal.length)}${indexOfDot>0 ?stringVal.substring(indexOfDot, indexOfDot+3):''}${autoscale.dataFormat}`
 }
 
 export function bytesToB(inputBytes: number) {
