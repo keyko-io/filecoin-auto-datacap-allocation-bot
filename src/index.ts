@@ -135,10 +135,10 @@ const allocationDatacap = async () => {
     const allClientsFromApiCleaned = allClientsFromApi.filter((item: any) => item.dataCapRemainingBytes !== -1)
 
     for (const issue of cleanedRawIssues) {
-      if (!allClientsFromApiCleaned.find((item: any) => item.issueNumber === issue.number)) {
-        logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> can't find datacap for this client`);
-        continue
-      }
+      // if (!allClientsFromApiCleaned.find((item: any) => item.issueNumber === issue.number)) {
+      //   logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> can't find datacap for this client`);
+      //   continue
+      // }
 
       const requestList = requestListForEachIssue.find((requestItem: any) => requestItem.issueNumber === issue.number).requestList
       const lastRequest = requestList[requestList.length - 1];
