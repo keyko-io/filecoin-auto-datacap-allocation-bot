@@ -14,7 +14,7 @@ import { EVENT_TYPE, MetricsApiParams } from "./Metrics";
 import { logGeneral, logWarn, logDebug, logError } from './logger/consoleLogger'
 const { callMetricsApi, } = require("@keyko-io/filecoin-verifier-tools/metrics/metrics");
 import { checkLabel } from "./utils";
-import { IssueInfo } from "./types";
+import { IssueInfo, ParseRequest } from "./types";
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
 
@@ -491,28 +491,34 @@ const findDatacapRequested = async (
 
 const retrieveLastTwoSigners = (
   issueComments: any,
-  issueNumber: any
+  issueNumber: number
 ): string[] => {
   try {
     let requestList: string[] = [];
-    for (let i = issueComments.length - 1; i >= 0; i--) {
+
+    let LENGTH: number = issueComments.comments.length;
+
+    for (let i = LENGTH - 1; i >= 0; i--) {
       if (requestList.length === 2) break;
-      const parseRequest = parseApprovedRequestWithSignerAddress(
-        issueComments[i].body
+
+      const parseRequest: ParseRequest = parseApprovedRequestWithSignerAddress(
+        issueComments.comments[i].body
       );
-      if (parseRequest.approvedMessage) {
-      }
+
       if (parseRequest.correct) {
         requestList.push(parseRequest.signerAddress);
       }
     }
+
+    console.log("requestList", requestList);
+
     return requestList;
   } catch (error) {
-    logGeneral(`Error, ${config.LOG_PREFIX} ${issueNumber}, error retrieving the last 2 signers. ${error}`
+    logGeneral(
+      `Error, ${config.LOG_PREFIX} ${issueNumber}, error retrieving the last 2 signers. ${error}`
     );
   }
 };
 
-
-
 allocationDatacap();
+
