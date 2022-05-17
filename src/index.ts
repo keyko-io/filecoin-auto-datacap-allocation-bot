@@ -180,18 +180,20 @@ const allocationDatacap = async () => {
         console.log("The issue reached the total datacap requested. This should be closed")
         issueInfoListClosed.push(issue.number)
         promArr.push(new Promise<void>(async (resolve, reject) => {
-          await octokit.issues.createComment({
-            owner,
-            repo,
-            issue_number: issue.number,
-            body: `The issue reached the total datacap requested. This should be closed`,
-          });
-          await octokit.issues.addLabels({
-            owner,
-            repo,
-            issue_number: issue.number,
-            labels: ["issue:TotalDcReached"],
-          });
+          if (!(process.env.LOGGER_ENVIRONMENT === "test")) {
+            await octokit.issues.createComment({
+              owner,
+              repo,
+              issue_number: issue.number,
+              body: `The issue reached the total datacap requested. This should be closed`,
+            });
+            await octokit.issues.addLabels({
+              owner,
+              repo,
+              issue_number: issue.number,
+              labels: ["issue:TotalDcReached"],
+            });
+          }
           //METRICS
           // const params: MetricsApiParams = {
           //   name: info.clientName,
@@ -254,25 +256,27 @@ const allocationDatacap = async () => {
 
             logGeneral(`CREATE REQUEST COMMENT ${config.LOG_PREFIX} ${info.issueNumber}`);
 
-            const commentResult = await octokit.issues.createComment({
-              owner,
-              repo,
-              issue_number: info.issueNumber,
-              body,
-            });
-            if (commentResult.status === 201) {
-              await octokit.issues.removeAllLabels({
+            if (!(process.env.LOGGER_ENVIRONMENT === "test")) {
+              const commentResult = await octokit.issues.createComment({
                 owner,
                 repo,
                 issue_number: info.issueNumber,
+                body,
               });
+              if (commentResult.status === 201) {
+                await octokit.issues.removeAllLabels({
+                  owner,
+                  repo,
+                  issue_number: info.issueNumber,
+                });
 
-              await octokit.issues.addLabels({
-                owner,
-                repo,
-                issue_number: info.issueNumber,
-                labels: ["bot:readyToSign"],
-              });
+                await octokit.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: info.issueNumber,
+                  labels: ["bot:readyToSign"],
+                });
+              }
             }
 
             // //METRICS
@@ -368,16 +372,19 @@ const commentStats = async (list: IssueInfo[]) => {
         );
 
         // console.log("CREATE STATS COMMENT", info.issueNumber)
-        await octokit.issues.createComment({
-          owner,
-          repo,
-          issue_number: info.issueNumber,
-          body,
-        });
+        if (!(process.env.LOGGER_ENVIRONMENT === "test")) {
+          await octokit.issues.createComment({
+            owner,
+            repo,
+            issue_number: info.issueNumber,
+            body,
+          });
+        }
         logGeneral(`CREATE STATS COMMENT, issue n ${info.issueNumber}`);
         logGeneral(`Posted stats comment, ${config.LOG_PREFIX} ${info.issueNumber}`);
         resolve()
       }))
+
     }
 
     await Promise.allSettled(promArr)
