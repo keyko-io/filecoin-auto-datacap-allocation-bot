@@ -98,47 +98,52 @@ const allocationDatacap = async () => {
     })
 
     const allClientsFromApi = await Promise.all(cleanedRawIssues.map(async (issue: any) => {
-      const clientAllowanceObj = await axios({
-        method: "GET",
-        url: `${config.filpusApi}/getAllowanceForAddress/${parseIssue(issue.body).address}`,
-        headers: {
-          "x-api-key": config.filplusApiKey,
-        },
-      });
+      try {
+        const clientAllowanceObj = await axios({
+          method: "GET",
+          url: `${config.filpusApi}/getAllowanceForAddress/${parseIssue(issue.body).address}`,
+          headers: {
+            "x-api-key": config.filplusApiKey,
+          },
+        });
 
-      let dataCapRemainingBytes = parseInt(clientAllowanceObj.data.allowance);
+        let dataCapRemainingBytes = parseInt(clientAllowanceObj.data.allowance);
 
-      if (!clientAllowanceObj?.data || !clientAllowanceObj.data.allowance) {
+        if (!clientAllowanceObj?.data || !clientAllowanceObj.data.allowance) {
 
-        let actorAddress: any = ""
-        if (parseIssue(issue.body).address.startsWith("f1")) {
-          actorAddress = await api.actorAddress(parseIssue(issue.body).address)
-        } else {
-          actorAddress = await api.cachedActorAddress(parseIssue(issue.body).address)
+          let actorAddress: any = ""
+          if (parseIssue(issue.body).address.startsWith("f1")) {
+            actorAddress = await api.actorAddress(parseIssue(issue.body).address)
+          } else {
+            actorAddress = await api.cachedActorAddress(parseIssue(issue.body).address)
+          }
+          const checkClient = await api.checkClient(actorAddress)
+
+          if (!checkClient[0]) {
+            logWarn(`${config.LOG_PREFIX} ${issue.number} - It looks like the client has 0B datacap remaining.`)
+            dataCapRemainingBytes = 0
+          } else {
+            dataCapRemainingBytes = parseInt(checkClient[0].datacap)
+          }
         }
-        const checkClient = await api.checkClient(actorAddress)
 
-        if (!checkClient[0]) {
-          logWarn(`${config.LOG_PREFIX} ${issue.number} - It looks like the client has 0B datacap remaining.`)
-          dataCapRemainingBytes = 0
-        } else {
-          dataCapRemainingBytes = parseInt(checkClient[0].datacap)
+        return {
+          issueNumber: issue.number,
+          dataCapRemainingBytes
         }
-      }
 
-      return {
-        issueNumber: issue.number,
-        dataCapRemainingBytes
+      } catch (error) {
+        console.log(error)
+        return 
       }
-    }))
+    }
+    ))
 
-    const allClientsFromApiCleaned = allClientsFromApi.filter((item: any) => item.dataCapRemainingBytes !== -1)
+    const allClientsFromApiCleaned =   allClientsFromApi
+    .filter((item: any) => item)
+    .filter((item: any) => item.dataCapRemainingBytes !== -1)
 
     for (const issue of cleanedRawIssues) {
-      // if (!allClientsFromApiCleaned.find((item: any) => item.issueNumber === issue.number)) {
-      //   logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> can't find datacap for this client`);
-      //   continue
-      // }
 
       const requestList = requestListForEachIssue.find((requestItem: any) => requestItem.issueNumber === issue.number).requestList
       const lastRequest = requestList[requestList.length - 1];
@@ -165,7 +170,11 @@ const allocationDatacap = async () => {
       const dataCapAllocatedBytes = Number(lastRequestDataCapAllocatedConvert);
       const dataCapRemainingBytes = allClientsFromApiCleaned.find((item: any) => item.issueNumber === issue.number).dataCapRemainingBytes
 
-      const margin = dataCapRemainingBytes / dataCapAllocatedBytes;
+      let margin = 0
+      if (dataCapRemainingBytes > 0) {
+        margin = dataCapRemainingBytes / dataCapAllocatedBytes;
+      }
+
       logGeneral(`${config.LOG_PREFIX} ${issue.number} datacap remaining / datacp allocated: ${(margin * 100).toFixed(2)} %`);
 
       const dcAllocationRequested = calculateAllocationToRequest(
