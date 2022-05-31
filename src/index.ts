@@ -8,6 +8,7 @@ import {
   parseApprovedRequestWithSignerAddress,
   parseIssue,
 } from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
+import { parseIssue as parseIssueNotary } from "@keyko-io/filecoin-verifier-tools/utils/notary-issue-parser.js";
 import axios from "axios";
 import { createAppAuth } from "@octokit/auth-app";
 import { EVENT_TYPE, MetricsApiParams } from "./Metrics";
@@ -134,14 +135,14 @@ const allocationDatacap = async () => {
 
       } catch (error) {
         console.log(error)
-        return 
+        return
       }
     }
     ))
 
-    const allClientsFromApiCleaned =   allClientsFromApi
-    .filter((item: any) => item)
-    .filter((item: any) => item.dataCapRemainingBytes !== -1)
+    const allClientsFromApiCleaned = allClientsFromApi
+      .filter((item: any) => item)
+      .filter((item: any) => item.dataCapRemainingBytes !== -1)
 
     for (const issue of cleanedRawIssues) {
 
@@ -537,4 +538,43 @@ const retrieveLastTwoSigners = (
 };
 
 allocationDatacap();
+
+
+const multisigMonitoring = async () => {
+
+  // TODO if env is test, don't execute the function
+  //Steps:
+
+  // use env var to store the issue number of the V3 msig
+  const V3_MSIG_ADDRESS = 'f01815985' //TODO put this in the env file, this address should be created each time for testing
+  const DATACAP_LEVEL = 28147497671065600
+  const MARGIN_COMPARISON_PERCENTAGE = 0.25
+
+
+  // get datacap remaining and parse from b to tib
+  // use getAllowanceForAddress
+  const v3MultisigAllowance = await axios({
+    method: "GET",
+    url: `${config.filpusApi}/getAllowanceForAddress/${V3_MSIG_ADDRESS}`,
+    headers: {
+      "x-api-key": config.filplusApiKey,
+    },
+  });
+  const dataCapRemainingBytes = v3MultisigAllowance.data.allowance
+
+  // calculate margin ( dc remaining / 25PiB) --> remember to convert to bytes first
+  const margin = dataCapRemainingBytes / DATACAP_LEVEL;
+
+  // if margin < 0.25 post a comment to request the dc
+  if (margin < MARGIN_COMPARISON_PERCENTAGE){
+  }
+
+
+  // TODO: Add logs for this operation
+
+
+}
+
+
+multisigMonitoring()
 
