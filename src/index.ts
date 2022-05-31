@@ -39,15 +39,16 @@ const formatPK = () => {
 };
 
 const octokit = new Octokit({
-  authStrategy: createAppAuth,
-  auth: {
-    type: "installation",
-    installationId: config.installationID,
-    appId: config.appId,
-    privateKey: formatPK(),
-    clientId: config.clientId,
-    clientSecret: config.clientSecret,
-  },
+  // authStrategy: createAppAuth,
+  // auth: {
+  //   type: "installation",
+  //   installationId: config.installationID,
+  //   appId: config.appId,
+  //   privateKey: formatPK(),
+  //   clientId: config.clientId,
+  //   clientSecret: config.clientSecret,
+  // },
+  auth: process.env.GITHUB_TOKEN
 });
 
 const allocationDatacap = async () => {
@@ -527,8 +528,6 @@ const retrieveLastTwoSigners = (
       }
     }
 
-    console.log("requestList", requestList);
-
     return requestList;
   } catch (error) {
     logGeneral(
@@ -543,12 +542,18 @@ allocationDatacap();
 const multisigMonitoring = async () => {
 
   // TODO if env is test, don't execute the function
+
+  if (config.NODE_ENV === "test") {
+    return;
+  }
+
   //Steps:
 
   // use env var to store the issue number of the V3 msig
   const V3_MSIG_ADDRESS = 'f01815985' //TODO put this in the env file, this address should be created each time for testing
   const DATACAP_LEVEL = 28147497671065600
   const MARGIN_COMPARISON_PERCENTAGE = 0.25
+  const issueNumber = 479
 
 
   // get datacap remaining and parse from b to tib
@@ -560,13 +565,25 @@ const multisigMonitoring = async () => {
       "x-api-key": config.filplusApiKey,
     },
   });
+
   const dataCapRemainingBytes = v3MultisigAllowance.data.allowance
+
 
   // calculate margin ( dc remaining / 25PiB) --> remember to convert to bytes first
   const margin = dataCapRemainingBytes / DATACAP_LEVEL;
 
   // if margin < 0.25 post a comment to request the dc
-  if (margin < MARGIN_COMPARISON_PERCENTAGE){
+  if (margin < MARGIN_COMPARISON_PERCENTAGE) {
+    try {
+      await octokit.issues.createComment({
+        owner: process.env.REPO_OWNER,
+        repo: process.env.NOTARY_GOV_REPO,
+        issue_number: issueNumber,
+        body: `test123`,
+      });
+    } catch (error) {
+      console.log("Error from the catch", error)
+    }
   }
 
 
