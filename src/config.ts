@@ -17,5 +17,7 @@ export const config = {
     privateKey: process.env.GIT_PRIVATE_KEY,
     installationID: process.env.INSTALLATION_ID,
     notariersJsonPath: process.env.VERIFIERS_JSON_PATH_PROD,
-    LOG_PREFIX:"Issue number"
+    LOG_PREFIX:"Issue number",
+    NODE_ENV:process.env.TEST_ENV_VAR,
+
 }
