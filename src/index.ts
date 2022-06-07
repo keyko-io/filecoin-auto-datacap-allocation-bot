@@ -558,6 +558,7 @@ const multisigMonitoring = async () => {
 
   // get datacap remaining and parse from b to tib
   // use getAllowanceForAddress
+
   let dataCapRemainingBytes = 0
   if (config.NODE_ENV !== "test") {
     const v3MultisigAllowance = await axios({
@@ -569,6 +570,11 @@ const multisigMonitoring = async () => {
     });
     dataCapRemainingBytes = v3MultisigAllowance.data.allowance
   }
+  else {
+    dataCapRemainingBytes = await api.checkClient(V3_MSIG_ADDRESS) //try also with t01020 and t01019
+  }
+
+
 
 
   console.log('allowance:', dataCapRemainingBytes)
@@ -580,21 +586,28 @@ const multisigMonitoring = async () => {
     margin = dataCapRemainingBytes / DATACAP_LEVEL_BYTES;
   }
 
+
+  const body = multisigApprovalComment(V3_MSIG_ADDRESS, DATACAP_LEVEL_STRING)
+
   // if margin < 0.25 post a comment to request the dc
   if (margin < MARGIN_COMPARISON_PERCENTAGE) {
     try {
-      const body = multisigApprovalComment(V3_MSIG_ADDRESS, DATACAP_LEVEL_STRING)
       await octokit.issues.createComment({
-        owner: process.env.GITHUB_LDN_REPO_OWNER,
-        repo: process.env.GITHUB_NOTARY_REPO,
+        owner: process.env.GITHUB_LDN_REPO_OWNER_TEST,
+        repo: process.env.GITHUB_NOTARY_REPO_TEST,
         issue_number: issueNumber,
         body
       });
+
+      logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 msig triggered.`);
+
     } catch (error) {
       console.log("Error from the catch", error)
     }
   }
 
+
+  logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 msig not triggered + ${dataCapRemainingBytes}.`);
 
   // TODO: Add logs for this operation
   // copy the structure of below logs:
@@ -602,6 +615,10 @@ const multisigMonitoring = async () => {
   // otherwise post 'dc request for v3 msig not triggered + ${datacap remaining}}
   // this ''logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot - '' should not change
   //  logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot - issues reaching the total datacap: ${issueInfoListClosed.map((num: any) => num)}`);
+
+
+
+
 
 
 }
