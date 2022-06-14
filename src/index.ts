@@ -102,7 +102,7 @@ const multisigMonitoring = async () => {
       console.log("Error from the catch", error)
     }
   }else{
-  logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 msig not triggered + ${dataCapRemainingBytes}.`);
+  logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 msig not triggered. DataCap remaining is: ${bytesToiB(dataCapRemainingBytes)}.`);
   }
 }
 multisigMonitoring()
