@@ -51,9 +51,75 @@ const octokit = new Octokit({
   auth: process.env.GITHUB_TOKEN
 });
 
+const multisigMonitoring = async () => {
+  logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot started - check V3 multisig address DataCap`);
+
+  //Steps:
+
+  // use env var to store the issue number of the V3 msig
+  const V3_MULTISIG_ADDRESS = config.V3_MULTISIG_ADDRESS
+  //TODO put this in the env file, this address should be created each time for testing
+  const V3_MULTISIG_DATACAP_ALLOWANCE_BYTES = config.V3_MULTISIG_DATACAP_ALLOWANCE_BYTES
+  const V3_MULTISIG_DATACAP_ALLOWANCE = config.V3_MULTISIG_DATACAP_ALLOWANCE
+  const V3_MARGIN_COMPARISON_PERCENTAGE = config.V3_MARGIN_COMPARISON_PERCENTAGE
+  const V3_MULTISIG_ISSUE_NUMBER = config.V3_MULTISIG_ISSUE_NUMBER as number
+
+
+  // get datacap remaining and parse from b to tib
+  // use getAllowanceForAddress
+  let dataCapRemainingBytes = 0
+  console.log('config.NODE_ENV ',config.ENVIRONMENT )
+  if (config.ENVIRONMENT !== "test") {
+    const v3MultisigAllowance = await axios({
+      method: "GET",
+      url: `${config.filpusApi}/getAllowanceForAddress/${V3_MULTISIG_ADDRESS}`,
+      headers: {
+        "x-api-key": config.filplusApiKey,
+      },
+    });
+    dataCapRemainingBytes = v3MultisigAllowance.data.allowance
+  }
+  else {
+    dataCapRemainingBytes = await api.checkVerifier(V3_MULTISIG_ADDRESS).datacap//try also with t01020 and t01019
+  }
+
+  // calculate margin ( dc remaining / 25PiB) --> remember to convert to bytes first
+  let margin = 0
+  if (dataCapRemainingBytes > 0) {
+    margin = dataCapRemainingBytes / V3_MULTISIG_DATACAP_ALLOWANCE_BYTES;
+  }
+  console.log(
+    'marign', margin,
+    'dataCapRemainingBytes',dataCapRemainingBytes
+  )
+
+  // if margin < 0.25 post a comment to request the dc
+  if (margin < V3_MARGIN_COMPARISON_PERCENTAGE) {
+    try {
+      const body = multisigApprovalComment(V3_MULTISIG_ADDRESS, V3_MULTISIG_DATACAP_ALLOWANCE)
+      await octokit.issues.createComment({
+        owner: process.env.GITHUB_LDN_REPO_OWNER,
+        repo: process.env.GITHUB_NOTARY_REPO,
+        issue_number: V3_MULTISIG_ISSUE_NUMBER,
+        body
+      });
+      logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 msig triggered.`);
+    } catch (error) {
+      console.log("Error from the catch", error)
+    }
+  }else{
+  logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 msig not triggered + ${dataCapRemainingBytes}.`);
+  }
+
+
+
+}
+multisigMonitoring()
+
+
 const allocationDatacap = async () => {
   try {
-    logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot started.`);
+    logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot started - check issues and clients DataCap.`);
 
     const clientsByVerifierRes = await axios({
       method: "GET",
@@ -536,76 +602,4 @@ const retrieveLastTwoSigners = (
   }
 };
 
-// allocationDatacap();
-
-
-const multisigMonitoring = async () => {
-
-  // // if env is test, don't execute the function
-  // if (config.NODE_ENV === "test") {
-  //   return;
-  // }
-
-  //Steps:
-
-  // use env var to store the issue number of the V3 msig
-  const V3_MSIG_ADDRESS = 't01019' //TODO put this in the env file, this address should be created each time for testing
-  const DATACAP_LEVEL_BYTES = 28147497671065600
-  const DATACAP_LEVEL_STRING = '25PiB'
-  const MARGIN_COMPARISON_PERCENTAGE = 0.25
-  const issueNumber = 479
-
-
-  // get datacap remaining and parse from b to tib
-  // use getAllowanceForAddress
-  let dataCapRemainingBytes = 0
-  if (config.NODE_ENV !== "test") {
-    const v3MultisigAllowance = await axios({
-      method: "GET",
-      url: `${config.filpusApi}/getAllowanceForAddress/${V3_MSIG_ADDRESS}`,
-      headers: {
-        "x-api-key": config.filplusApiKey,
-      },
-    });
-    dataCapRemainingBytes = v3MultisigAllowance.data.allowance
-  }
-
-
-  console.log('allowance:', dataCapRemainingBytes)
-
-  // calculate margin ( dc remaining / 25PiB) --> remember to convert to bytes first
-
-  let margin = 0
-  if (dataCapRemainingBytes > 0) {
-    margin = dataCapRemainingBytes / DATACAP_LEVEL_BYTES;
-  }
-
-  // if margin < 0.25 post a comment to request the dc
-  if (margin < MARGIN_COMPARISON_PERCENTAGE) {
-    try {
-      const body = multisigApprovalComment(V3_MSIG_ADDRESS, DATACAP_LEVEL_STRING)
-      await octokit.issues.createComment({
-        owner: process.env.GITHUB_LDN_REPO_OWNER,
-        repo: process.env.GITHUB_NOTARY_REPO,
-        issue_number: issueNumber,
-        body
-      });
-    } catch (error) {
-      console.log("Error from the catch", error)
-    }
-  }
-
-
-  // TODO: Add logs for this operation
-  // copy the structure of below logs:
-  //if the datacap request is triggered, log 'dc request for v3 msig triggered
-  // otherwise post 'dc request for v3 msig not triggered + ${datacap remaining}}
-  // this ''logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot - '' should not change
-  //  logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot - issues reaching the total datacap: ${issueInfoListClosed.map((num: any) => num)}`);
-
-
-}
-
-
-multisigMonitoring()
-
+allocationDatacap();
