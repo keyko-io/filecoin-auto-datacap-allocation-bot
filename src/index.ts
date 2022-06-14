@@ -351,7 +351,7 @@ const allocationDatacap = async () => {
                   owner,
                   repo,
                   issue_number: info.issueNumber,
-                  labels: ["bot:readyToSign"],
+                  labels: ["bot:readyToSign", "state:Approved"],
                 });
               }
             }
