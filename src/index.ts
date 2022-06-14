@@ -39,16 +39,15 @@ const formatPK = () => {
 };
 
 const octokit = new Octokit({
-  // authStrategy: createAppAuth,
-  // auth: {
-  //   type: "installation",
-  //   installationId: config.installationID,
-  //   appId: config.appId,
-  //   privateKey: formatPK(),
-  //   clientId: config.clientId,
-  //   clientSecret: config.clientSecret,
-  // },
-  auth: process.env.GITHUB_TOKEN
+  authStrategy: createAppAuth,
+  auth: {
+    type: "installation",
+    installationId: config.installationID,
+    appId: config.appId,
+    privateKey: formatPK(),
+    clientId: config.clientId,
+    clientSecret: config.clientSecret,
+  }
 });
 
 const multisigMonitoring = async () => {
@@ -68,7 +67,6 @@ const multisigMonitoring = async () => {
   // get datacap remaining and parse from b to tib
   // use getAllowanceForAddress
   let dataCapRemainingBytes = 0
-  console.log('config.NODE_ENV ',config.ENVIRONMENT )
   if (config.ENVIRONMENT !== "test") {
     const v3MultisigAllowance = await axios({
       method: "GET",
@@ -88,10 +86,6 @@ const multisigMonitoring = async () => {
   if (dataCapRemainingBytes > 0) {
     margin = dataCapRemainingBytes / V3_MULTISIG_DATACAP_ALLOWANCE_BYTES;
   }
-  console.log(
-    'marign', margin,
-    'dataCapRemainingBytes',dataCapRemainingBytes
-  )
 
   // if margin < 0.25 post a comment to request the dc
   if (margin < V3_MARGIN_COMPARISON_PERCENTAGE) {
@@ -110,9 +104,6 @@ const multisigMonitoring = async () => {
   }else{
   logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 msig not triggered + ${dataCapRemainingBytes}.`);
   }
-
-
-
 }
 multisigMonitoring()
 
