@@ -101,8 +101,8 @@ const multisigMonitoring = async () => {
     } catch (error) {
       console.log("Error from the catch", error)
     }
-  }else{
-  logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 msig not triggered. DataCap remaining is: ${bytesToiB(dataCapRemainingBytes)}.`);
+  } else {
+    logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 msig not triggered. DataCap remaining is: ${bytesToiB(dataCapRemainingBytes)}.`);
   }
 }
 multisigMonitoring()
@@ -207,7 +207,7 @@ const allocationDatacap = async () => {
       const requestList = requestListForEachIssue.find((requestItem: any) => requestItem.issueNumber === issue.number).requestList
       const lastRequest = requestList[requestList.length - 1];
       const requestNumber = requestList.length;
-
+      const isCustomNotary = parseIssue(issue.body).isCustomNotary
       const client = clientsByVerifierRes.data.data.find((item: any) => item.address == lastRequest.clientAddress);
       if (!client) {
         logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> dc not allocated yet`);
@@ -290,7 +290,7 @@ const allocationDatacap = async () => {
 
           const info: IssueInfo = {
             issueNumber: issue.number,
-            msigAddress: lastRequest.notaryAddress,
+            msigAddress: isCustomNotary ? lastRequest.notaryAddress : config.V3_MULTISIG_ADDRESS,
             address: lastRequest.clientAddress,
             actorAddress: client.addressId ? client.addressId : client.address,
             dcAllocationRequested: dcAllocationRequested.amount,
