@@ -1,9 +1,10 @@
 import { Octokit } from "@octokit/rest";
 import { config } from "./config";
 import { createAppAuth } from "@octokit/auth-app"
+import { matchGroupLargeNotary } from "@keyko-io/filecoin-verifier-tools/utils/common-utils"
 
-const OWNER = process.env.GITHUB_LDN_REPO_OWNER_TEST;
-const REPO = process.env.GITHUB_NOTARY_REPO_TEST;
+const OWNER = process.env.GITHUB_LDN_REPO_OWNER;
+const REPO = process.env.GITHUB_NOTARY_REPO;
 
 const formatPK = () => {
     const BEGIN = config.beginPk;
@@ -30,22 +31,33 @@ const octokit = new Octokit({
 //parse the address
 //create comment with the structure in the github 
 
-//const issues = [629]
+const issuesToRemoveDatacap = [242, 271]
 
-export const removeDatacap = async () => {
-    try {
-        const test = await octokit.rest.issues.get({
-            owner: OWNER,
-            repo: REPO,
-            issue_number: 629
-        });
+export const removeDatacap = async (issues: number[]) => {
+    for (let issue of issues) {
+        try {
+            const issueContent = await octokit.rest.issues.get({
+                owner: OWNER,
+                repo: REPO,
+                issue_number: issue
+            });
 
-        console.log(test)
-    } catch (error) {
-        console.log("yey")
-        console.log(error)
+            const regexAddress = /-\s*On-chain\s*Address\(es\)\s*to\s*be\s*Notarized:\s*(.*)/mi
+            const address = matchGroupLargeNotary(regexAddress, issueContent.data.body)
+
+            await octokit.issues.createComment({
+                owner: OWNER,
+                repo: REPO,
+                issue_number: issue,
+                body: `\r\n## Request Approved\r\n#### Address\r\n> ${address}\r\n#### Datacap Allocated\r\n> 0TiB\r\n`
+            });
+
+        } catch (error) {
+            console.log(error)
+        }
     }
+
 }
 
 
-removeDatacap()
+removeDatacap(issuesToRemoveDatacap)
