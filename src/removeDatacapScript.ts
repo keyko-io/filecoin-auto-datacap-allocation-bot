@@ -26,25 +26,23 @@ const octokit = new Octokit({
     },
 });
 
-//TODOS
-//get the issues with spesific number,
-//parse the address
-//create comment with the structure in the github 
-
 const issuesToRemoveDatacap = [242, 271]
 
-export const removeDatacap = async (issues: number[]) => {
+export const removeDatacap = async (issues: number[]): Promise<void> => {
     for (let issue of issues) {
         try {
+            //get the issue
             const issueContent = await octokit.rest.issues.get({
                 owner: OWNER,
                 repo: REPO,
                 issue_number: issue
             });
 
+            //parsing the address from issueContent
             const regexAddress = /-\s*On-chain\s*Address\(es\)\s*to\s*be\s*Notarized:\s*(.*)/mi
             const address = matchGroupLargeNotary(regexAddress, issueContent.data.body)
 
+            //creating comment for issue
             await octokit.issues.createComment({
                 owner: OWNER,
                 repo: REPO,
