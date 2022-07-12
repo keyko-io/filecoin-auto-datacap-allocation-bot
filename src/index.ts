@@ -97,6 +97,12 @@ const multisigMonitoring = async () => {
         issue_number: V3_MULTISIG_ISSUE_NUMBER,
         body
       });
+      await octokit.issues.addLabels({
+        owner: process.env.GITHUB_LDN_REPO_OWNER,
+        repo: process.env.GITHUB_NOTARY_REPO,
+        issue_number: V3_MULTISIG_ISSUE_NUMBER,
+        labels: ["status:Approved"],
+      });
       logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 msig triggered.`);
     } catch (error) {
       console.log("Error from the catch", error)
