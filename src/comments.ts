@@ -45,3 +45,8 @@ export const statsComment = (
 | ${nDeals}  | ${nStorageProviders}  |  ${previousDcAllocated} | ${topProvider}  | ${remainingDatacap}
     `
 }
+
+
+export const multisigApprovalComment = (address: string, dataCap: string): string => {
+    return `\r\n## Request Approved\r\n#### Address\r\n> ${address}\r\n#### Datacap Allocated\r\n> ${dataCap}\r\n`
+}

@@ -1,13 +1,14 @@
 import { Octokit } from "@octokit/rest";
 import { config } from "./config";
 import { bytesToiB, anyToBytes, checkRequestAndReturnRequest, commentsForEachIssue } from "./utils";
-import { newAllocationRequestComment, statsComment } from "./comments";
+import { multisigApprovalComment, newAllocationRequestComment, statsComment } from "./comments";
 import VerifyAPI from "@keyko-io/filecoin-verifier-tools/api/api.js";
 import {
   parseReleaseRequest,
   parseApprovedRequestWithSignerAddress,
   parseIssue,
 } from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
+import { parseIssue as parseIssueNotary } from "@keyko-io/filecoin-verifier-tools/utils/notary-issue-parser.js";
 import axios from "axios";
 import { createAppAuth } from "@octokit/auth-app";
 import { EVENT_TYPE, MetricsApiParams } from "./Metrics";
@@ -46,12 +47,76 @@ const octokit = new Octokit({
     privateKey: formatPK(),
     clientId: config.clientId,
     clientSecret: config.clientSecret,
-  },
+  }
 });
+
+const multisigMonitoring = async () => {
+  logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot started - check V3 multisig address DataCap`);
+
+  //Steps:
+
+  // use env var to store the issue number of the V3 msig
+  const V3_MULTISIG_ADDRESS = config.V3_MULTISIG_ADDRESS
+  //TODO put this in the env file, this address should be created each time for testing
+  const V3_MULTISIG_DATACAP_ALLOWANCE_BYTES = config.V3_MULTISIG_DATACAP_ALLOWANCE_BYTES
+  const V3_MULTISIG_DATACAP_ALLOWANCE = config.V3_MULTISIG_DATACAP_ALLOWANCE
+  const V3_MARGIN_COMPARISON_PERCENTAGE = config.V3_MARGIN_COMPARISON_PERCENTAGE
+  const V3_MULTISIG_ISSUE_NUMBER = config.V3_MULTISIG_ISSUE_NUMBER as number
+
+
+  // get datacap remaining and parse from b to tib
+  // use getAllowanceForAddress
+  let dataCapRemainingBytes = 0
+  if (config.ENVIRONMENT !== "test") {
+    const v3MultisigAllowance = await axios({
+      method: "GET",
+      url: `${config.filpusApi}/getAllowanceForAddress/${V3_MULTISIG_ADDRESS}`,
+      headers: {
+        "x-api-key": config.filplusApiKey,
+      },
+    });
+    dataCapRemainingBytes = v3MultisigAllowance.data.allowance
+  }
+  else {
+    dataCapRemainingBytes = await api.checkVerifier(V3_MULTISIG_ADDRESS).datacap//try also with t01020 and t01019
+  }
+
+  // calculate margin ( dc remaining / 25PiB) --> remember to convert to bytes first
+  let margin = 0
+  if (dataCapRemainingBytes > 0) {
+    margin = dataCapRemainingBytes / V3_MULTISIG_DATACAP_ALLOWANCE_BYTES;
+  }
+
+  // if margin < 0.25 post a comment to request the dc
+  if (margin < V3_MARGIN_COMPARISON_PERCENTAGE) {
+    try {
+      const body = multisigApprovalComment(V3_MULTISIG_ADDRESS, V3_MULTISIG_DATACAP_ALLOWANCE)
+      await octokit.issues.createComment({
+        owner: process.env.GITHUB_LDN_REPO_OWNER,
+        repo: process.env.GITHUB_NOTARY_REPO,
+        issue_number: V3_MULTISIG_ISSUE_NUMBER,
+        body
+      });
+      await octokit.issues.addLabels({
+        owner: process.env.GITHUB_LDN_REPO_OWNER,
+        repo: process.env.GITHUB_NOTARY_REPO,
+        issue_number: V3_MULTISIG_ISSUE_NUMBER,
+        labels: ["status:Approved"],
+      });
+      logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 msig triggered.`);
+    } catch (error) {
+      console.log("Error from the catch", error)
+    }
+  } else {
+    logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 msig not triggered. DataCap remaining is: ${bytesToiB(dataCapRemainingBytes)}.`);
+  }
+}
+multisigMonitoring()
+
 
 const allocationDatacap = async () => {
   try {
-    logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot started.`);
+    logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot started - check issues and clients DataCap.`);
 
     const clientsByVerifierRes = await axios({
       method: "GET",
@@ -98,52 +163,57 @@ const allocationDatacap = async () => {
     })
 
     const allClientsFromApi = await Promise.all(cleanedRawIssues.map(async (issue: any) => {
-      const clientAllowanceObj = await axios({
-        method: "GET",
-        url: `${config.filpusApi}/getAllowanceForAddress/${parseIssue(issue.body).address}`,
-        headers: {
-          "x-api-key": config.filplusApiKey,
-        },
-      });
+      try {
+        const clientAllowanceObj = await axios({
+          method: "GET",
+          url: `${config.filpusApi}/getAllowanceForAddress/${parseIssue(issue.body).address}`,
+          headers: {
+            "x-api-key": config.filplusApiKey,
+          },
+        });
 
-      let dataCapRemainingBytes = parseInt(clientAllowanceObj.data.allowance);
+        let dataCapRemainingBytes = parseInt(clientAllowanceObj.data.allowance);
 
-      if (!clientAllowanceObj?.data || !clientAllowanceObj.data.allowance) {
+        if (!clientAllowanceObj?.data || !clientAllowanceObj.data.allowance) {
 
-        let actorAddress: any = ""
-        if (parseIssue(issue.body).address.startsWith("f1")) {
-          actorAddress = await api.actorAddress(parseIssue(issue.body).address)
-        } else {
-          actorAddress = await api.cachedActorAddress(parseIssue(issue.body).address)
+          let actorAddress: any = ""
+          if (parseIssue(issue.body).address.startsWith("f1")) {
+            actorAddress = await api.actorAddress(parseIssue(issue.body).address)
+          } else {
+            actorAddress = await api.cachedActorAddress(parseIssue(issue.body).address)
+          }
+          const checkClient = await api.checkClient(actorAddress)
+
+          if (!checkClient[0]) {
+            logWarn(`${config.LOG_PREFIX} ${issue.number} - It looks like the client has 0B datacap remaining.`)
+            dataCapRemainingBytes = 0
+          } else {
+            dataCapRemainingBytes = parseInt(checkClient[0].datacap)
+          }
         }
-        const checkClient = await api.checkClient(actorAddress)
 
-        if (!checkClient[0]) {
-          logWarn(`${config.LOG_PREFIX} ${issue.number} - It looks like the client has 0B datacap remaining.`)
-          dataCapRemainingBytes = 0
-        } else {
-          dataCapRemainingBytes = parseInt(checkClient[0].datacap)
+        return {
+          issueNumber: issue.number,
+          dataCapRemainingBytes
         }
-      }
 
-      return {
-        issueNumber: issue.number,
-        dataCapRemainingBytes
+      } catch (error) {
+        console.log(error)
+        return
       }
-    }))
+    }
+    ))
 
-    const allClientsFromApiCleaned = allClientsFromApi.filter((item: any) => item.dataCapRemainingBytes !== -1)
+    const allClientsFromApiCleaned = allClientsFromApi
+      .filter((item: any) => item)
+      .filter((item: any) => item.dataCapRemainingBytes !== -1)
 
     for (const issue of cleanedRawIssues) {
-      // if (!allClientsFromApiCleaned.find((item: any) => item.issueNumber === issue.number)) {
-      //   logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> can't find datacap for this client`);
-      //   continue
-      // }
 
       const requestList = requestListForEachIssue.find((requestItem: any) => requestItem.issueNumber === issue.number).requestList
       const lastRequest = requestList[requestList.length - 1];
       const requestNumber = requestList.length;
-
+      const isCustomNotary = parseIssue(issue.body).isCustomNotary
       const client = clientsByVerifierRes.data.data.find((item: any) => item.address == lastRequest.clientAddress);
       if (!client) {
         logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> dc not allocated yet`);
@@ -165,7 +235,11 @@ const allocationDatacap = async () => {
       const dataCapAllocatedBytes = Number(lastRequestDataCapAllocatedConvert);
       const dataCapRemainingBytes = allClientsFromApiCleaned.find((item: any) => item.issueNumber === issue.number).dataCapRemainingBytes
 
-      const margin = dataCapRemainingBytes / dataCapAllocatedBytes;
+      let margin = 0
+      if (dataCapRemainingBytes > 0) {
+        margin = dataCapRemainingBytes / dataCapAllocatedBytes;
+      }
+
       logGeneral(`${config.LOG_PREFIX} ${issue.number} datacap remaining / datacp allocated: ${(margin * 100).toFixed(2)} %`);
 
       const dcAllocationRequested = calculateAllocationToRequest(
@@ -222,7 +296,7 @@ const allocationDatacap = async () => {
 
           const info: IssueInfo = {
             issueNumber: issue.number,
-            msigAddress: lastRequest.notaryAddress,
+            msigAddress: isCustomNotary ? lastRequest.notaryAddress : config.V3_MULTISIG_ADDRESS,
             address: lastRequest.clientAddress,
             actorAddress: client.addressId ? client.addressId : client.address,
             dcAllocationRequested: dcAllocationRequested.amount,
@@ -274,7 +348,7 @@ const allocationDatacap = async () => {
                   owner,
                   repo,
                   issue_number: info.issueNumber,
-                  labels: ["bot:readyToSign"],
+                  labels: ["bot:readyToSign", "state:Approved"],
                 });
               }
             }
@@ -517,8 +591,6 @@ const retrieveLastTwoSigners = (
       }
     }
 
-    console.log("requestList", requestList);
-
     return requestList;
   } catch (error) {
     logGeneral(
@@ -528,4 +600,3 @@ const retrieveLastTwoSigners = (
 };
 
 allocationDatacap();
-
