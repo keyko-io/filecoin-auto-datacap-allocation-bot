@@ -39,15 +39,15 @@ export function bytesToiB(inputBytes: number) {
   //this is bc it cannot convert 1099511627776000 to 1PiB and it convert to 9 YiB
   let stringVal = ''
   if (autoscale.dataFormat === "YiB") {
-      autoscale = byteConverter.autoScale(inputBytes-32, 'B', { preferByte: true, preferBinary: true } as any)
-      return `${autoscale.value.toFixed(1)}${autoscale.dataFormat}`
-      // stringVal = String(autoscale.value)
-      // return `${stringVal.substring(0, stringVal.indexOf('.'))}${stringVal.substring(stringVal.indexOf('.'), stringVal.indexOf('.')+3)}${autoscale.dataFormat}`
+    autoscale = byteConverter.autoScale(inputBytes - 32, 'B', { preferByte: true, preferBinary: true } as any)
+    return `${autoscale.value.toFixed(1)}${autoscale.dataFormat}`
+    // stringVal = String(autoscale.value)
+    // return `${stringVal.substring(0, stringVal.indexOf('.'))}${stringVal.substring(stringVal.indexOf('.'), stringVal.indexOf('.')+3)}${autoscale.dataFormat}`
   }
   stringVal = String(autoscale.value)
 
   const indexOfDot = stringVal.indexOf('.')
-  return `${stringVal.substring(0, indexOfDot>0? indexOfDot : stringVal.length)}${indexOfDot>0 ?stringVal.substring(indexOfDot, indexOfDot+3):''}${autoscale.dataFormat}`
+  return `${stringVal.substring(0, indexOfDot > 0 ? indexOfDot : stringVal.length)}${indexOfDot > 0 ? stringVal.substring(indexOfDot, indexOfDot + 3) : ''}${autoscale.dataFormat}`
 }
 
 export function bytesToB(inputBytes: number) {
@@ -59,7 +59,9 @@ enum LabelsEnum {
   READY_TO_SIGN = "bot:readyToSign",
   NEED_DILIGENCE = "status:needsDiligence",
   ERROR = "status:Error",
-  TOTAL_DC_REACHED = "issue:TotalDcReached"
+  TOTAL_DC_REACHED = "issue:TotalDcReached",
+  STATUS_APPROVED ="status:Approved",
+  STATUS_START_SIGN_ON_CHAIN ="status:StartSignOnchain",
 }
 
 export const checkLabel = (issue: any) => {
@@ -78,6 +80,10 @@ export const checkLabel = (issue: any) => {
   }
   if (issue.labels.find((item: any) => item.name === LabelsEnum.TOTAL_DC_REACHED)) {
     logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> ${LabelsEnum.TOTAL_DC_REACHED} is present`);
+    return false
+  }
+  if (issue.labels.find((item: any) => item.name === LabelsEnum.STATUS_APPROVED) || issue.labels.find((item: any) => item.name === LabelsEnum.STATUS_START_SIGN_ON_CHAIN)) {
+    logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> V3 Msig started the RKH signature round.`);
     return false
   }
   return true
@@ -113,7 +119,7 @@ export const checkRequestAndReturnRequest = (requestListForEachIssue: any[], iss
 }
 
 
-export const commentsForEachIssue = async (octokit:any,rawIssues:any) => {
+export const commentsForEachIssue = async (octokit: any, rawIssues: any) => {
   return await Promise.all(
     rawIssues.map(async (issue: any) => {
       const comments = await octokit.paginate(octokit.rest.issues.listComments,

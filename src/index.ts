@@ -50,6 +50,7 @@ const octokit = new Octokit({
   }
 });
 
+
 const multisigMonitoring = async () => {
   logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot started - check V3 multisig address DataCap`);
 
@@ -62,6 +63,16 @@ const multisigMonitoring = async () => {
   const V3_MULTISIG_DATACAP_ALLOWANCE = config.V3_MULTISIG_DATACAP_ALLOWANCE
   const V3_MARGIN_COMPARISON_PERCENTAGE = config.V3_MARGIN_COMPARISON_PERCENTAGE
   const V3_MULTISIG_ISSUE_NUMBER = config.V3_MULTISIG_ISSUE_NUMBER as number
+
+  const issue = await octokit.issues.get({
+    owner: process.env.GITHUB_LDN_REPO_OWNER,
+    repo: process.env.GITHUB_NOTARY_REPO,
+    issue_number: V3_MULTISIG_ISSUE_NUMBER,
+  });
+
+  if (!checkLabel(issue.data)) {
+    return
+  }
 
 
   // get datacap remaining and parse from b to tib
