@@ -58,9 +58,13 @@ const multisigMonitoring = async () => {
 
   // use env var to store the issue number of the V3 msig
   const V3_MULTISIG_ADDRESS = config.V3_MULTISIG_ADDRESS
-  //TODO put this in the env file, this address should be created each time for testing
-  const V3_MULTISIG_DATACAP_ALLOWANCE_BYTES = config.V3_MULTISIG_DATACAP_ALLOWANCE_BYTES
-  const V3_MULTISIG_DATACAP_ALLOWANCE = config.V3_MULTISIG_DATACAP_ALLOWANCE
+
+
+
+  // vars with BASELINE means that this is the base datacap to be assignes. 
+  // it can be more if the usage is more than 2 weeks is bigger than the baseline amount
+  const V3_MULTISIG_BASELINE_DATACAP_ALLOWANCE_BYTES = config.V3_MULTISIG_DATACAP_ALLOWANCE_BYTES
+  // const V3_MULTISIG_BASELINE_DATACAP_ALLOWANCE = config.V3_MULTISIG_DATACAP_ALLOWANCE
   const V3_MARGIN_COMPARISON_PERCENTAGE = config.V3_MARGIN_COMPARISON_PERCENTAGE
   const V3_MULTISIG_ISSUE_NUMBER = config.V3_MULTISIG_ISSUE_NUMBER as number
 
@@ -73,6 +77,7 @@ const multisigMonitoring = async () => {
   if (!checkLabel(issue.data)) {
     return
   }
+
 
 
   // get datacap remaining and parse from b to tib
@@ -89,19 +94,22 @@ const multisigMonitoring = async () => {
     dataCapRemainingBytes = v3MultisigAllowance.data.allowance
   }
   else {
-    dataCapRemainingBytes = await api.checkVerifier(V3_MULTISIG_ADDRESS).datacap//try also with t01020 and t01019
+    dataCapRemainingBytes = await api.checkVerifier(V3_MULTISIG_ADDRESS).datacap
   }
 
   // calculate margin ( dc remaining / 25PiB) --> remember to convert to bytes first
   let margin = 0
   if (dataCapRemainingBytes > 0) {
-    margin = dataCapRemainingBytes / V3_MULTISIG_DATACAP_ALLOWANCE_BYTES;
+    margin = dataCapRemainingBytes / V3_MULTISIG_BASELINE_DATACAP_ALLOWANCE_BYTES;
   }
 
   // if margin < 0.25 post a comment to request the dc
   if (margin < V3_MARGIN_COMPARISON_PERCENTAGE) {
     try {
-      const body = multisigApprovalComment(V3_MULTISIG_ADDRESS, V3_MULTISIG_DATACAP_ALLOWANCE)
+
+      const datacapToBeRequested = await checkV3LastTwoWeeksAndReturnDatacapToBeRequested(V3_MULTISIG_BASELINE_DATACAP_ALLOWANCE_BYTES)
+
+      const body = multisigApprovalComment(V3_MULTISIG_ADDRESS, datacapToBeRequested)
       await octokit.issues.createComment({
         owner: process.env.GITHUB_LDN_REPO_OWNER,
         repo: process.env.GITHUB_NOTARY_REPO,
@@ -116,12 +124,43 @@ const multisigMonitoring = async () => {
       });
       logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 msig triggered.`);
     } catch (error) {
-      console.log("Error from the catch", error)
+      console.log(error)
     }
   } else {
     logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 msig not triggered. DataCap remaining is: ${bytesToiB(dataCapRemainingBytes)}.`);
   }
 }
+
+//TODO when we will decide to apply the same mechanism to clients, create a second case for clients
+const checkV3LastTwoWeeksAndReturnDatacapToBeRequested = async (baselineAllowanceBytes: number) => {
+  try {
+  const allowanceAssignedToLdnV3InLast2Weeks: any = await axios({
+    method: "GET",
+    url: `${config.filpusApi}/getAllowanceAssignedToLdnV3InLast2Weeks`,
+    headers: {
+      "x-api-key": config.filplusApiKey,
+    },
+  });
+
+
+  if (allowanceAssignedToLdnV3InLast2Weeks.data.allowance > baselineAllowanceBytes) {
+  // console.log('RETURN allowanceAssignedToLdnV3InLast2Weeks.allowance', allowanceAssignedToLdnV3InLast2Weeks.data.allowance)
+  logDebug(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot - datacap spent in last 2 weeks is bigger than the baseline datacap amount. requesting the 2 weeks amount.`)
+    return bytesToiB(allowanceAssignedToLdnV3InLast2Weeks.allowance)
+  }
+  logDebug(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot - datacap spent in last 2 weeks is less than the baseline datacap amount. requesting the baseline amount (25PiB).`)
+  // console.log('RETURN baselineAllowanceBytes', baselineAllowanceBytes)
+  return bytesToiB(baselineAllowanceBytes)
+    
+  } catch (error) {
+    console.log('error in checkV3LastTwoWeeksAndReturnDatacapToBeRequested', error)
+  }
+}
+
+
+checkV3LastTwoWeeksAndReturnDatacapToBeRequested(config.V3_MULTISIG_DATACAP_ALLOWANCE_BYTES)
+
+
 multisigMonitoring()
 
 
