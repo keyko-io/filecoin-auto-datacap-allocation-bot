@@ -122,6 +122,7 @@ const multisigMonitoring = async () => {
 
 //TODO when we will decide to apply the same mechanism to clients, create a second case for clients
 const checkV3LastTwoWeeksAndReturnDatacapToBeRequested = async (baselineAllowanceBytes: number) => {
+  try {
   const allowanceAssignedToLdnV3InLast2Weeks: any = await axios({
     method: "GET",
     url: `${config.filpusApi}/getAllowanceAssignedToLdnV3InLast2Weeks`,
@@ -139,6 +140,10 @@ const checkV3LastTwoWeeksAndReturnDatacapToBeRequested = async (baselineAllowanc
   logDebug(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot - datacap spent in last 2 weeks is less than the baseline datacap amount. requesting the baseline amount (25PiB).`)
   // console.log('RETURN baselineAllowanceBytes', baselineAllowanceBytes)
   return bytesToiB(baselineAllowanceBytes)
+    
+  } catch (error) {
+    console.log('error in checkV3LastTwoWeeksAndReturnDatacapToBeRequested', error)
+  }
 }
 
 
