@@ -1,0 +1,12 @@
+[
+    {
+    "identifier":"yummy",
+    "address":"f101",
+    "datacapThreshold": "500TiB"
+     },
+    {
+    "identifier":"abc",
+    "address":"f102",
+    "datacapThreshold": "500TiB"
+     }
+ ]
