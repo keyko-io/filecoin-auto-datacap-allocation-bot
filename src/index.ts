@@ -16,11 +16,15 @@ import { logGeneral, logWarn, logDebug, logError } from './logger/consoleLogger'
 const { callMetricsApi, } = require("@keyko-io/filecoin-verifier-tools/metrics/metrics");
 import { checkLabel } from "./utils";
 import { IssueInfo, ParseRequest } from "./types";
+import customMsg from "./customMsg.json"
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
 
-
-
+type ExceptionMsg = {
+  identifier: string,
+  address: string,
+  datacapThreshold: string
+}
 
 const api = new VerifyAPI( // eslint-disable-line
   VerifyAPI.standAloneProvider(
@@ -107,6 +111,69 @@ const multisigMonitoring = async () => {
 }
 multisigMonitoring()
 
+
+const exceptionMultisigMonitoring = async (exception: ExceptionMsg) => {
+  logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot started - check V3 multisig address DataCap`);
+
+  //Steps:
+
+  // use env var to store the issue number of the V3 msig
+  const V3_MULTISIG_ADDRESS = exception.address
+  //TODO put this in the env file, this address should be created each time for testing
+  const V3_MULTISIG_DATACAP_ALLOWANCE_BYTES = config.V3_MULTISIG_DATACAP_ALLOWANCE_BYTES
+  const V3_MULTISIG_DATACAP_ALLOWANCE = config.V3_MULTISIG_DATACAP_ALLOWANCE
+  const V3_MARGIN_COMPARISON_PERCENTAGE = config.V3_MARGIN_COMPARISON_PERCENTAGE
+  const V3_MULTISIG_ISSUE_NUMBER = config.V3_MULTISIG_ISSUE_NUMBER as number
+
+
+  // get datacap remaining and parse from b to tib
+  // use getAllowanceForAddress
+  let dataCapRemainingBytes = 0
+  if (config.ENVIRONMENT !== "test") {
+    const v3MultisigAllowance = await axios({
+      method: "GET",
+      url: `${config.filpusApi}/getAllowanceForAddress/${V3_MULTISIG_ADDRESS}`,
+      headers: {
+        "x-api-key": config.filplusApiKey,
+      },
+    });
+    dataCapRemainingBytes = v3MultisigAllowance.data.allowance
+  }
+  else {
+    dataCapRemainingBytes = await api.checkVerifier(V3_MULTISIG_ADDRESS).datacap//try also with t01020 and t01019
+  }
+
+  // calculate margin ( dc remaining / 25PiB) --> remember to convert to bytes first
+  let margin = 0
+  if (dataCapRemainingBytes > 0) {
+    margin = dataCapRemainingBytes / V3_MULTISIG_DATACAP_ALLOWANCE_BYTES;
+  }
+
+  //ASK FABRIZIO ABOUT MULTISIG_ISSUE_NUMBER
+  //LEARN MORE ABOUT HOW THIS FUNCTION WORKS FOR TEST ENV AND PRO ENV DIFFERENTLY
+
+  // if margin < 0.25 post a comment to request the dc
+  if (margin < V3_MARGIN_COMPARISON_PERCENTAGE) {
+    try {
+      const body = multisigApprovalComment(V3_MULTISIG_ADDRESS, V3_MULTISIG_DATACAP_ALLOWANCE)
+      await octokit.issues.createComment({
+        owner: process.env.GITHUB_LDN_REPO_OWNER,
+        repo: process.env.GITHUB_NOTARY_REPO,
+        issue_number: V3_MULTISIG_ISSUE_NUMBER,
+        body
+      });
+      logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 msig triggered.`);
+    } catch (error) {
+      console.log("Error from the catch", error)
+    }
+  } else {
+    logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 msig not triggered. DataCap remaining is: ${bytesToiB(dataCapRemainingBytes)}.`);
+  }
+}
+
+for (let exception of customMsg) {
+  exceptionMultisigMonitoring(exception)
+}
 
 const allocationDatacap = async () => {
   try {
