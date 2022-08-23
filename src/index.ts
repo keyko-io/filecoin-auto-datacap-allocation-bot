@@ -122,6 +122,28 @@ const multisigMonitoring = async () => {
         issue_number: V3_MULTISIG_ISSUE_NUMBER,
         labels: ["status:Approved"],
       });
+
+
+      //check all the labels, if addedOnChain exist remove it
+      const issueContent = await octokit.rest.issues.get({
+        owner: process.env.GITHUB_LDN_REPO_OWNER,
+        repo: process.env.GITHUB_NOTARY_REPO,
+        issue_number: V3_MULTISIG_ISSUE_NUMBER,
+      });
+
+      const allLabels = issueContent.data.labels
+
+      const addedOnchainExist = allLabels.find((item: any) => item.name === "status:AddedOnchain")
+
+      if (addedOnchainExist) {
+        await octokit.rest.issues.removeLabel({
+          owner: process.env.GITHUB_LDN_REPO_OWNER,
+          repo: process.env.GITHUB_NOTARY_REPO,
+          issue_number: V3_MULTISIG_ISSUE_NUMBER,
+          name: "status:AddedOnchain"
+        });
+      }
+
       logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 msig triggered.`);
     } catch (error) {
       console.log(error)
@@ -134,24 +156,24 @@ const multisigMonitoring = async () => {
 //TODO when we will decide to apply the same mechanism to clients, create a second case for clients
 const checkV3LastTwoWeeksAndReturnDatacapToBeRequested = async (baselineAllowanceBytes: number) => {
   try {
-  const allowanceAssignedToLdnV3InLast2Weeks: any = await axios({
-    method: "GET",
-    url: `${config.filpusApi}/getAllowanceAssignedToLdnV3InLast2Weeks`,
-    headers: {
-      "x-api-key": config.filplusApiKey,
-    },
-  });
+    const allowanceAssignedToLdnV3InLast2Weeks: any = await axios({
+      method: "GET",
+      url: `${config.filpusApi}/getAllowanceAssignedToLdnV3InLast2Weeks`,
+      headers: {
+        "x-api-key": config.filplusApiKey,
+      },
+    });
 
 
-  if (allowanceAssignedToLdnV3InLast2Weeks.data.allowance > baselineAllowanceBytes) {
-  // console.log('RETURN allowanceAssignedToLdnV3InLast2Weeks.allowance', allowanceAssignedToLdnV3InLast2Weeks.data.allowance)
-  logDebug(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot - datacap spent in last 2 weeks is bigger than the baseline datacap amount. requesting the 2 weeks amount.`)
-    return bytesToiB(allowanceAssignedToLdnV3InLast2Weeks.allowance)
-  }
-  logDebug(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot - datacap spent in last 2 weeks is less than the baseline datacap amount. requesting the baseline amount (25PiB).`)
-  // console.log('RETURN baselineAllowanceBytes', baselineAllowanceBytes)
-  return bytesToiB(baselineAllowanceBytes)
-    
+    if (allowanceAssignedToLdnV3InLast2Weeks.data.allowance > baselineAllowanceBytes) {
+      // console.log('RETURN allowanceAssignedToLdnV3InLast2Weeks.allowance', allowanceAssignedToLdnV3InLast2Weeks.data.allowance)
+      logDebug(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot - datacap spent in last 2 weeks is bigger than the baseline datacap amount. requesting the 2 weeks amount.`)
+      return bytesToiB(allowanceAssignedToLdnV3InLast2Weeks.allowance)
+    }
+    logDebug(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot - datacap spent in last 2 weeks is less than the baseline datacap amount. requesting the baseline amount (25PiB).`)
+    // console.log('RETURN baselineAllowanceBytes', baselineAllowanceBytes)
+    return bytesToiB(baselineAllowanceBytes)
+
   } catch (error) {
     console.log('error in checkV3LastTwoWeeksAndReturnDatacapToBeRequested', error)
   }
