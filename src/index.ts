@@ -159,6 +159,7 @@ const exceptionMultisigMonitoring = async (exception: {
   id: string;
   notary_msig: string;
   notary_datacap: string;
+  issue_number: string;
 }) => {
   logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot started - check V3 specific multisigs address DataCap`);
 
@@ -168,35 +169,31 @@ const exceptionMultisigMonitoring = async (exception: {
   const V3_MULTISIG_ADDRESS = exception.notary_msig
   //TODO put this in the env file, this address should be created each time for testing
 
-  //1- ask fabrizio how to calculate bytes ?
+  //1- ask fabrizio how to calculate bytes ? (anyToBites)
   const V3_MULTISIG_DATACAP_ALLOWANCE_BYTES = config.V3_MULTISIG_DATACAP_ALLOWANCE_BYTES
 
   const V3_MULTISIG_DATACAP_ALLOWANCE = exception.notary_datacap
 
-  //2- ask fabrizio percentage will change or not ? 
+  //2- ask fabrizio percentage will change or not ? (thats ok)
   const V3_MARGIN_COMPARISON_PERCENTAGE = config.V3_MARGIN_COMPARISON_PERCENTAGE
 
   //3 - ask fabrizio about how to get issue number ?
-  const V3_MULTISIG_ISSUE_NUMBER = config.V3_MULTISIG_ISSUE_NUMBER as number
+  const V3_MULTISIG_ISSUE_NUMBER = exception.issue_number
 
 
   // get datacap remaining and parse from b to tib
   // use getAllowanceForAddress
   let dataCapRemainingBytes = 0
-  if (config.ENVIRONMENT !== "test") {
-    const v3MultisigAllowance = await axios({
-      method: "GET",
-      url: `${config.filpusApi}/getAllowanceForAddress/${exception.notary_msig}`,
-      headers: {
-        "x-api-key": config.filplusApiKey,
-      },
-    });
-    dataCapRemainingBytes = v3MultisigAllowance.data.allowance
-  }
-  else {
-    //4- ask fabrizio for the test msig adress what should we put ?
-    dataCapRemainingBytes = await api.checkVerifier(V3_MULTISIG_ADDRESS).datacap//try also with t01020 and t01019
-  }
+
+  const v3MultisigAllowance = await axios({
+    method: "GET",
+    url: `${config.filpusApi}/getAllowanceForAddress/${exception.notary_msig}`,
+    headers: {
+      "x-api-key": config.filplusApiKey,
+    },
+  });
+  dataCapRemainingBytes = v3MultisigAllowance.data.allowance
+
 
   // calculate margin ( dc remaining / 25PiB) --> remember to convert to bytes first
   let margin = 0
@@ -214,7 +211,7 @@ const exceptionMultisigMonitoring = async (exception: {
       await octokit.issues.createComment({
         owner: process.env.GITHUB_LDN_REPO_OWNER,
         repo: process.env.GITHUB_NOTARY_REPO,
-        issue_number: V3_MULTISIG_ISSUE_NUMBER,
+        issue_number: parseInt(exception.issue_number),
         body
       });
       logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 specific multisigs triggered.`);
