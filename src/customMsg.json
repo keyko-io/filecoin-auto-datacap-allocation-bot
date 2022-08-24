@@ -1,0 +1,12 @@
+[
+    {
+    "id":"yummy",
+    "notary_msig":"f101",
+    "notary_datacap": "10PiB"
+     },
+    {
+    "id":"abc",
+    "notary_msig":"f102",
+    "notary_datacap": "10PiB"
+    }
+]
