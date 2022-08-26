@@ -67,19 +67,32 @@ const scrape = async () => {
             state: 'all',
         });
 
+        const wrongIssues = []
         for (let issue of rawIssues) {
             const parsedIssue = parseIssue(issue.body)
-            if (!parseIssue(issue.body).correct) {
-                console.log('issue is incorrect')
+            const name = parsedIssue.name
+            const address = parsedIssue.address
+            if (!name || !address) {
+                // console.log('name, address', parsedIssue, parsedIssue.name, parsedIssue.address, issue.number)
+                const params = {
+                    issue_number: issue.number,
+                    missingName: !name ? true : false,
+                    missingAddress: !address ? true : false
+                }
+                await callMetricsApi(issue.number, EVENT_TYPE.APPLICATION_HAS_ERRORS, params)
+                wrongIssues.push(issue.number)
                 continue
             }
+            // } else {
+            //     continue
+            // }
             // CREATE_APPLICATION
             let params: MetricsApiParams = {
-                name: parsedIssue.name,
+                name: name,
                 clientAddress: parsedIssue.clientAddress,
                 eventDate: issue.created_at
             }
-            console.log('CREATE_APPLICATION ', issue.number, params.eventDate)
+            // console.log('CREATE_APPLICATION ', issue.number, params.eventDate)
             await callMetricsApi(issue.number, EVENT_TYPE.CREATE_APPLICATION, params)
             counter++
 
@@ -88,7 +101,6 @@ const scrape = async () => {
                 repo: REPO,
                 issue_number: issue.number
             });
-            // console.log(rawComments)
 
             // from this array get the 1st posted and send as FIRST_DC_REQUEST
             // sort the array
@@ -117,14 +129,14 @@ const scrape = async () => {
             rawComments
                 .filter((comment: any) => parseReleaseRequest(comment.body).correct)
                 .forEach(async (comment: any, index: any) => {
-                    params.name = parsedIssue.name
-                    params.clientAddress = parsedIssue.address
+                    params.name = name
+                    params.clientAddress = address
                     params.amount = parseReleaseRequest(comment.body).allocationDatacap
                     params.eventDate = comment.created_at
 
                     if (index === 0) {
                         // console.log('solo qui index = FIRST', index)
-                        console.log('FIRST_DC_REQUEST ', issue.number, params.eventDate)
+                        // console.log('FIRST_DC_REQUEST ', issue.number, params.eventDate)
 
                         await callMetricsApi(issue.number, EVENT_TYPE.FIRST_DC_REQUEST, params)
                         counter++
@@ -132,7 +144,7 @@ const scrape = async () => {
                     }
                     await callMetricsApi(issue.number, EVENT_TYPE.SUBSEQUENT_DC_REQUEST, params)
                     counter++
-                    console.log('SUBSEQUENT_DC_REQUEST ', issue.number, params.eventDate)
+                    // console.log('SUBSEQUENT_DC_REQUEST ', issue.number, params.eventDate)
                 })
 
 
@@ -146,12 +158,8 @@ const scrape = async () => {
             //     messageCid: approveDcComment.message
             //   }
             //   callMetricsApi(context.issue().issue_number, EVENT_TYPE.DC_ALLOCATION, params)
+               
 
-
-            // from this array get all approved comment
-            // sort the array
-            // get all the type: approved and send the DC_ALLOCATION event
-            // if  every 2 comments, we don't have a type:approved send DC_ALLOCATION event with the second comment 
             // send DC_ALLOCATION event
             rawComments
                 .filter((comment: any) => parseApprovedRequestWithSignerAddress(comment.body).correct)
@@ -159,28 +167,31 @@ const scrape = async () => {
                 .forEach(async (comment: any, index: any, array: any[]) => {
 
                     //TODO we need multisig address
-                    params.name = parsedIssue.name
-                    params.clientAddress = parsedIssue.address
-                    params.amount = parseApprovedRequestWithSignerAddress(comment.body).datacap
-                    params.messageCid = parseApprovedRequestWithSignerAddress(comment.body).message
+                    params.name = name
+                    params.clientAddress = address
+                    params.amount = parseApprovedRequestWithSignerAddress(comment.body).datacap 
+                    params.messageCid = parseApprovedRequestWithSignerAddress(comment.body).message 
                     params.eventDate = comment.created_at
+                    await callMetricsApi(issue.number, EVENT_TYPE.DC_ALLOCATION, params)
+                    // if (parseApprovedRequestWithSignerAddress(comment.body).isApproved) {
+                    //     console.log('DC_ALLOCATION,', issue.number, params.eventDate)
+                    //     await callMetricsApi(issue.number, EVENT_TYPE.DC_ALLOCATION, params)
+                    //     counter++
+                    //     return
+                    // }
+                    // if (array[index + 1]) {
+                    //     if (!parseApprovedRequestWithSignerAddress(comment.body).isApproved && !parseApprovedRequestWithSignerAddress(array[index + 1].body).isApproved) {
+                    //         await callMetricsApi(issue.number, EVENT_TYPE.DC_ALLOCATION, params)
+                    //         counter++
+                    //         console.log('DC_ALLOCATION, isapproved=false ', issue.number, params.eventDate)
 
-                    if (parseApprovedRequestWithSignerAddress(comment.body).isApproved) {
-                        console.log('DC_ALLOCATION, isapproved=true ', issue.number, params.eventDate)
-                        await callMetricsApi(issue.number, EVENT_TYPE.DC_ALLOCATION, params)
-                        counter++
-                        return
-                    }
-                    if (!parseApprovedRequestWithSignerAddress(comment.body).isApproved && !parseApprovedRequestWithSignerAddress(array[index + 1].body).isApproved) {
-                        await callMetricsApi(issue.number, EVENT_TYPE.DC_ALLOCATION, params)
-                        counter++
-                        console.log('DC_ALLOCATION, isapproved=false ', issue.number, params.eventDate)
-
-                        return
-                    }
+                    //         return
+                    //     }
+                    // }
                 })
         }
         console.log('total of calls:', counter)
+        console.log('skipped issues:', wrongIssues)
     } catch (error) {
         console.log(error)
     }
