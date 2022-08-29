@@ -4,10 +4,12 @@
 export enum EVENT_TYPE {
     CREATE_APPLICATION = "create_application",
     MULTISIG_CREATION = "multisig_creation",
+    MULTISIG_APPROVED= "multisig_approved",
     FIRST_DC_REQUEST = "first_datacap_request",
     DC_ALLOCATION = "datacap_allocation",
     SUBSEQUENT_DC_REQUEST = "subsequent_datacap_request",
-    TOTAL_DATACAP_REACHED = "total_datacap_reached",
+    APPLICATION_IS_GOOD = "application_is_good",
+    APPLICATION_HAS_ERRORS = "application_has_errors"
 }
 
 /**
@@ -16,34 +18,11 @@ export enum EVENT_TYPE {
  * @approvers who approved the last request
  */
 export type MetricsApiParams = {
-    name: string,
-    clientAddress: string,
+    eventDate?: any,
+    name?: string,
+    clientAddress?: string,
     msigAddress?: string,
     amount?: string,
     requestNumber?: string | number
+    messageCid?: any
 }
-
-// type ApiRequest = {
-//     environment: string,
-//     repo: string,
-//     issueNumber: any,
-//     timeStamp: Date,
-//     eventType: EVENT_TYPE
-//     params: MetricsApiParams
-// }
-
-// export  function callMetricsApi(issueNumber: any, eventType: EVENT_TYPE, params: MetricsApiParams) {
-//     const req: ApiRequest = {
-//         environment: process.env.METRICS_API_ENVIRONMENT || "test",
-//         issueNumber,
-//         repo: "large-dataset",
-//         timeStamp: new Date,
-//         eventType,
-//         params
-//     }
-//     // const res = "functioning sofar"
-//     console.log(req)
-//     // const res =  axios.post(baseURL, req)
-//     // console.log()
-//     // return res
-// }
