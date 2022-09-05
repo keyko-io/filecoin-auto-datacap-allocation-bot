@@ -167,10 +167,11 @@ const checkV3LastTwoWeeksAndReturnDatacapToBeRequested = async (baselineAllowanc
 
     if (allowanceAssignedToLdnV3InLast2Weeks.data.allowance > baselineAllowanceBytes) {
       // console.log('RETURN allowanceAssignedToLdnV3InLast2Weeks.allowance', allowanceAssignedToLdnV3InLast2Weeks.data.allowance)
-      logDebug(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot - datacap spent in last 2 weeks is bigger than the baseline datacap amount. requesting the 2 weeks amount.`)
-      return bytesToiB(allowanceAssignedToLdnV3InLast2Weeks.allowance)
+      const alw = bytesToiB(allowanceAssignedToLdnV3InLast2Weeks.data.allowance)
+      logDebug(`${config.LOG_PREFIX} ${config.V3_MULTISIG_ISSUE_NUMBER} Subsequent-Allocation-Bot - datacap spent in last 2 weeks is bigger than the baseline datacap amount. requesting the 2 weeks amount (${alw}).`)
+      return alw
     }
-    logDebug(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot - datacap spent in last 2 weeks is less than the baseline datacap amount. requesting the baseline amount (25PiB).`)
+    logDebug(`${config.LOG_PREFIX} ${config.V3_MULTISIG_ISSUE_NUMBER} Subsequent-Allocation-Bot - datacap spent in last 2 weeks is less than the baseline datacap amount. requesting the baseline amount (25PiB).`)
     // console.log('RETURN baselineAllowanceBytes', baselineAllowanceBytes)
     return bytesToiB(baselineAllowanceBytes)
 
@@ -180,7 +181,7 @@ const checkV3LastTwoWeeksAndReturnDatacapToBeRequested = async (baselineAllowanc
 }
 
 
-checkV3LastTwoWeeksAndReturnDatacapToBeRequested(config.V3_MULTISIG_DATACAP_ALLOWANCE_BYTES)
+// checkV3LastTwoWeeksAndReturnDatacapToBeRequested(config.V3_MULTISIG_DATACAP_ALLOWANCE_BYTES)
 
 
 multisigMonitoring()
