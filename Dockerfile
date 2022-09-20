@@ -2,6 +2,7 @@ FROM node:12-alpine
 
 RUN apk add --no-cache --update \
   make \
+  python3 \
   g++ \
   git \
   bash \
