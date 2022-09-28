@@ -1,5 +1,6 @@
+import { config } from "../config";
 
-const ENVIRONMENT = process.env.LOGGER_ENVIRONMENT
+const ENVIRONMENT = config.networkType
 const PHASE = `Subsequent Allocation`;
 
 export const logGeneral = (message: string): void => {
