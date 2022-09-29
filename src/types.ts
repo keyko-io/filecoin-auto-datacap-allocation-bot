@@ -49,3 +49,10 @@ export interface ParseRequest {
     errorMessage: string;
     errorDetails: string;
 }
+
+export type v3Exception = {
+    identifier: string;
+    notary_msig: string;
+    notary_msig_datacap: string;
+    notary_msig_issue_number: string;
+}

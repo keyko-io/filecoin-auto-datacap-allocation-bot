@@ -66,24 +66,24 @@ enum LabelsEnum {
 
 export const checkLabel = (issue: any) => {
   if (issue.labels.find((item: any) => item.name === LabelsEnum.READY_TO_SIGN)) {
-    logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> ${LabelsEnum.READY_TO_SIGN} is present`);
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LabelsEnum.READY_TO_SIGN} is present`);
     return false
   }
   if (
     issue.labels.find((item: any) => item.name === LabelsEnum.NEED_DILIGENCE)) {
-    logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> ${LabelsEnum.NEED_DILIGENCE} is present`);
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LabelsEnum.NEED_DILIGENCE} is present`);
     return false
   }
   if (issue.labels.find((item: any) => item.name === LabelsEnum.ERROR)) {
-    logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> ${LabelsEnum.ERROR} is present`);
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LabelsEnum.ERROR} is present`);
     return false
   }
   if (issue.labels.find((item: any) => item.name === LabelsEnum.TOTAL_DC_REACHED)) {
-    logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> ${LabelsEnum.TOTAL_DC_REACHED} is present`);
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LabelsEnum.TOTAL_DC_REACHED} is present`);
     return false
   }
   if (issue.labels.find((item: any) => item.name === LabelsEnum.STATUS_APPROVED) || issue.labels.find((item: any) => item.name === LabelsEnum.STATUS_START_SIGN_ON_CHAIN)) {
-    logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> V3 Msig started the RKH signature round.`);
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> V3 Msig started the RKH signature round.`);
     return false
   }
   return true
@@ -96,19 +96,19 @@ export const checkRequestAndReturnRequest = (requestListForEachIssue: any[], iss
   const requestNumber = requestListForEachIssue.length;
 
   if (lastRequest === undefined) {
-    logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> DataCap allocation requested comment is not present`);
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> DataCap allocation requested comment is not present`);
     return { isValid: false }
   }
   if (!lastRequest.allocationDatacap && !lastRequest.clientAddress) {
-    logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> DataCap allocation requested comment is not present`);
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> DataCap allocation requested comment is not present`);
     return { isValid: false }
   }
   if (!lastRequest.clientAddress) {
-    logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> clientAddress not found after parsing the comments`);
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> clientAddress not found after parsing the comments`);
     return { isValid: false }
   }
   if (!lastRequest.allocationDatacap) {
-    logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> datacapAllocated not found after parsing the comments`);
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> datacapAllocated not found after parsing the comments`);
     return { isValid: false }
   }
   return {

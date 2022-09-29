@@ -7,8 +7,6 @@ import {
   parseIssue,
 } from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
 import axios from "axios";
-import customMsg from "./customMsg.json"
-import { createAppAuth } from "@octokit/auth-app";
 import { EVENT_TYPE, MetricsApiParams } from "./Metrics";
 import { logGeneral, logWarn, logDebug, logError } from './logger/consoleLogger'
 const { callMetricsApi, } = require("@keyko-io/filecoin-verifier-tools/metrics/metrics");
@@ -16,7 +14,9 @@ import { checkLabel } from "./utils";
 import { IssueInfo, ParseRequest } from "./types";
 import OctokitInitializer from "./initializers/OctokitInitializer";
 import ApiInitializer from "./initializers/ApiInitializer";
-import { multisigMonitoring, checkV3LastTwoWeeksAndReturnDatacapToBeRequested } from "./msigMonitoring";
+import { multisigMonitoring, exceptionMultisigMonitoring } from "./msigTopup";
+
+
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
 
@@ -26,94 +26,19 @@ const repo = config.githubLDNRepo;
 
 const api = ApiInitializer.getInstance()
 const octokit = OctokitInitializer.getInstance()
-
-
-
-
-const exceptionMultisigMonitoring = async (exception: {
-  id: string;
-  notary_msig: string;
-  notary_datacap: string;
-  issue_number: string;
-}) => {
-  logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot started - check V3 specific multisigs address DataCap`);
-
-  //Steps:
-
-  // use env var to store the issue number of the V3 msig
-  const V3_MULTISIG_ADDRESS = exception.notary_msig
-  //TODO put this in the env file, this address should be created each time for testing
-
-  //1- ask fabrizio how to calculate bytes ? (anyToBites)
-  const V3_MULTISIG_DATACAP_ALLOWANCE_BYTES = config.V3_MULTISIG_DATACAP_ALLOWANCE_BYTES
-
-  const V3_MULTISIG_DATACAP_ALLOWANCE = exception.notary_datacap
-
-  //2- ask fabrizio percentage will change or not ? (thats ok)
-  const V3_MARGIN_COMPARISON_PERCENTAGE = config.V3_MARGIN_COMPARISON_PERCENTAGE
-
-  //3 - ask fabrizio about how to get issue number ?
-  const V3_MULTISIG_ISSUE_NUMBER = exception.issue_number
-
-
-  // get datacap remaining and parse from b to tib
-  // use getAllowanceForAddress
-  let dataCapRemainingBytes = 0
-
-  const v3MultisigAllowance = await axios({
-    method: "GET",
-    url: `${config.filpusApi}/getAllowanceForAddress/${exception.notary_msig}`,
-    headers: {
-      "x-api-key": config.filplusApiKey,
-    },
-  });
-  dataCapRemainingBytes = v3MultisigAllowance.data.allowance
-
-
-  // calculate margin ( dc remaining / 25PiB) --> remember to convert to bytes first
-  let margin = 0
-  if (dataCapRemainingBytes > 0) {
-    margin = dataCapRemainingBytes / V3_MULTISIG_DATACAP_ALLOWANCE_BYTES;
-  }
-
-  //ASK FABRIZIO ABOUT MULTISIG_ISSUE_NUMBER
-  //LEARN MORE ABOUT HOW THIS FUNCTION WORKS FOR TEST ENV AND PRO ENV DIFFERENTLY
-
-  // if margin < 0.25 post a comment to request the dc
-  if (margin < V3_MARGIN_COMPARISON_PERCENTAGE) {
-    try {
-      const body = multisigApprovalComment(V3_MULTISIG_ADDRESS, V3_MULTISIG_DATACAP_ALLOWANCE)
-      await octokit.issues.createComment({
-        owner: process.env.GITHUB_LDN_REPO_OWNER,
-        repo: process.env.GITHUB_NOTARY_REPO,
-        issue_number: parseInt(exception.issue_number),
-        body
-      });
-      logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 specific multisigs triggered.`);
-    } catch (error) {
-      console.log("Error from the catch", error)
-    }
-  } else {
-    logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot dc request for v3 specific multisigs not triggered. DataCap remaining is: ${bytesToiB(dataCapRemainingBytes)}.`);
-  }
-}
-
-for (let exception of customMsg) {
-  exceptionMultisigMonitoring(exception)
-}
-
-
-
-
-checkV3LastTwoWeeksAndReturnDatacapToBeRequested(config.V3_MULTISIG_DATACAP_ALLOWANCE_BYTES)
-
-
 multisigMonitoring()
+exceptionMultisigMonitoring()
+
+
+
+
+
+
 
 
 const allocationDatacap = async () => {
   try {
-    logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot started - check issues and clients DataCap.`);
+    logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot started - check issues and clients DataCap.`);
 
     const clientsByVerifierRes = await axios({
       method: "GET",
@@ -131,7 +56,7 @@ const allocationDatacap = async () => {
 
     let issueInfoList: IssueInfo[] = [];
     let issueInfoListClosed = [];
-    logGeneral(`${config.LOG_PREFIX} 0 Number of fetched comments: ${rawIssues.length}`);
+    logGeneral(`${config.logPrefix} 0 Number of fetched comments: ${rawIssues.length}`);
     const promArr = []
 
 
@@ -182,7 +107,7 @@ const allocationDatacap = async () => {
           const checkClient = await api.checkClient(actorAddress)
 
           if (!checkClient[0]) {
-            logWarn(`${config.LOG_PREFIX} ${issue.number} - It looks like the client has 0B datacap remaining.`)
+            logWarn(`${config.logPrefix} ${issue.number} - It looks like the client has 0B datacap remaining.`)
             dataCapRemainingBytes = 0
           } else {
             dataCapRemainingBytes = parseInt(checkClient[0].datacap)
@@ -213,7 +138,7 @@ const allocationDatacap = async () => {
       const isCustomNotary = parseIssue(issue.body).isCustomNotary
       const client = clientsByVerifierRes.data.data.find((item: any) => item.address == lastRequest.clientAddress);
       if (!client) {
-        logGeneral(`${config.LOG_PREFIX} ${issue.number} skipped --> dc not allocated yet`);
+        logGeneral(`${config.logPrefix} ${issue.number} skipped --> dc not allocated yet`);
         continue
       }
 
@@ -237,7 +162,7 @@ const allocationDatacap = async () => {
         margin = dataCapRemainingBytes / dataCapAllocatedBytes;
       }
 
-      logGeneral(`${config.LOG_PREFIX} ${issue.number} datacap remaining / datacp allocated: ${(margin * 100).toFixed(2)} %`);
+      logGeneral(`${config.logPrefix} ${issue.number} datacap remaining / datacp allocated: ${(margin * 100).toFixed(2)} %`);
 
       const dcAllocationRequested = calculateAllocationToRequest(
         requestNumber,
@@ -293,7 +218,7 @@ const allocationDatacap = async () => {
 
           const info: IssueInfo = {
             issueNumber: issue.number,
-            msigAddress: isCustomNotary ? lastRequest.notaryAddress : config.V3_MULTISIG_ADDRESS,
+            msigAddress: isCustomNotary ? lastRequest.notaryAddress : config.v3MultisigAddress,
             address: lastRequest.clientAddress,
             actorAddress: client.addressId ? client.addressId : client.address,
             dcAllocationRequested: dcAllocationRequested.amount,
@@ -325,7 +250,7 @@ const allocationDatacap = async () => {
               requestNumber
             );
 
-            logGeneral(`CREATE REQUEST COMMENT ${config.LOG_PREFIX} ${info.issueNumber}`);
+            logGeneral(`CREATE REQUEST COMMENT ${config.logPrefix} ${info.issueNumber}`);
 
             if (!(process.env.LOGGER_ENVIRONMENT === "test")) {
               const commentResult = await octokit.issues.createComment({
@@ -362,22 +287,22 @@ const allocationDatacap = async () => {
               EVENT_TYPE.SUBSEQUENT_DC_REQUEST,
               params
             );
-            logGeneral(`${config.LOG_PREFIX} ${issue.number}, posted subsequent allocation comment.`
+            logGeneral(`${config.logPrefix} ${issue.number}, posted subsequent allocation comment.`
             );
             issueInfoList.push(info);
           }
           resolve()
 
         } catch (error) {
-          reject(`Erorr, ${config.LOG_PREFIX} ${issue.number}: ${error}`)
+          reject(`Erorr, ${config.logPrefix} ${issue.number}: ${error}`)
         }
       }))
     }
     await Promise.allSettled(promArr)
     await commentStats(issueInfoList);
-    logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot ended. ${issueInfoList.length ? issueInfoList.length : 0} issues commented`);
-    logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot - commented issues number: ${issueInfoList.map((info: any) => info.issueNumber)}, ${issueInfoListClosed.map((num: any) => num)}`);
-    logGeneral(`${config.LOG_PREFIX} 0 Subsequent-Allocation-Bot - issues reaching the total datacap: ${issueInfoListClosed.map((num: any) => num)}`);
+    logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot ended. ${issueInfoList.length ? issueInfoList.length : 0} issues commented`);
+    logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot - commented issues number: ${issueInfoList.map((info: any) => info.issueNumber)}, ${issueInfoListClosed.map((num: any) => num)}`);
+    logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot - issues reaching the total datacap: ${issueInfoListClosed.map((num: any) => num)}`);
   } catch (error) {
     console.log("error listing the issues, generic error in the bot", error)
   }
@@ -407,7 +332,7 @@ const commentStats = async (list: IssueInfo[]) => {
         );
         if (apiElement === undefined) {
           throw new Error(
-            `Error, stat comment of ${config.LOG_PREFIX} ${info.issueNumber} failed because the bot couldn't find the correspondent address in the filplus dashboard`
+            `Error, stat comment of ${config.logPrefix} ${info.issueNumber} failed because the bot couldn't find the correspondent address in the filplus dashboard`
           );
         }
 
@@ -452,7 +377,7 @@ const commentStats = async (list: IssueInfo[]) => {
           });
         }
         logGeneral(`CREATE STATS COMMENT, issue n ${info.issueNumber}`);
-        logGeneral(`Posted stats comment, ${config.LOG_PREFIX} ${info.issueNumber}`);
+        logGeneral(`Posted stats comment, ${config.logPrefix} ${info.issueNumber}`);
         resolve()
       }))
 
@@ -471,9 +396,9 @@ const calculateAllocationToRequest = (
   weeklyDcAllocationBytes: number,
   issueNumber: any
 ) => {
-  logDebug(`${config.LOG_PREFIX} ${issueNumber} weekly datacap requested by client: ${bytesToiB(weeklyDcAllocationBytes)} ${weeklyDcAllocationBytes}B`)
+  logDebug(`${config.logPrefix} ${issueNumber} weekly datacap requested by client: ${bytesToiB(weeklyDcAllocationBytes)} ${weeklyDcAllocationBytes}B`)
 
-  logDebug(`${config.LOG_PREFIX} ${issueNumber} total datacap requested by client: ${bytesToiB(totaldDcRequestedByClient)}, ${totaldDcRequestedByClient}B`)
+  logDebug(`${config.logPrefix} ${issueNumber} total datacap requested by client: ${bytesToiB(totaldDcRequestedByClient)}, ${totaldDcRequestedByClient}B`)
 
 
   let nextRequest = 0;
@@ -513,25 +438,25 @@ const calculateAllocationToRequest = (
 
 
   const sumTotalAmountWithNextRequest = nextRequest + totalDcGrantedForClientSoFar
-  logDebug(`${config.LOG_PREFIX} ${issueNumber} sumTotalAmountWithNextRequest (sum next request + total datcap granted to client so far): ${bytesToiB(sumTotalAmountWithNextRequest)}`)
+  logDebug(`${config.logPrefix} ${issueNumber} sumTotalAmountWithNextRequest (sum next request + total datcap granted to client so far): ${bytesToiB(sumTotalAmountWithNextRequest)}`)
 
   let retObj: any = {}
   if (sumTotalAmountWithNextRequest > totaldDcRequestedByClient) {
-    logDebug(`${config.LOG_PREFIX} ${issueNumber} sumTotalAmountWithNextRequest is higher than total datacap requested by client (${totaldDcRequestedByClient}, requesting the difference of total dc requested - total datacap granted so far)`)
+    logDebug(`${config.logPrefix} ${issueNumber} sumTotalAmountWithNextRequest is higher than total datacap requested by client (${totaldDcRequestedByClient}, requesting the difference of total dc requested - total datacap granted so far)`)
     // console.log("totaldDcRequestedByClient", totaldDcRequestedByClient)
     // console.log("totalDcGrantedForClientSoFar", totalDcGrantedForClientSoFar)
     nextRequest = totaldDcRequestedByClient - totalDcGrantedForClientSoFar
     // console.log("nextRequest in if", nextRequest)
   }
   if (nextRequest <= 0) {
-    logDebug(`${config.LOG_PREFIX} ${issueNumber} - seems that the client reached the total datacap request in this issue. This should be checked and closed`)
+    logDebug(`${config.logPrefix} ${issueNumber} - seems that the client reached the total datacap request in this issue. This should be checked and closed`)
     retObj = { totalDatacapReached: true }
     return retObj
   }
 
 
-  logDebug(`${config.LOG_PREFIX} ${issueNumber} nextRequest ${bytesToiB(nextRequest)}`)
-  logDebug(`${config.LOG_PREFIX} ${issueNumber} allocation rule: ${rule}`)
+  logDebug(`${config.logPrefix} ${issueNumber} nextRequest ${bytesToiB(nextRequest)}`)
+  logDebug(`${config.logPrefix} ${issueNumber} allocation rule: ${rule}`)
   retObj = {
     amount: bytesToiB(Math.floor(nextRequest)),
     rule,
@@ -591,7 +516,7 @@ const retrieveLastTwoSigners = (
     return requestList;
   } catch (error) {
     logGeneral(
-      `Error, ${config.LOG_PREFIX} ${issueNumber}, error retrieving the last 2 signers. ${error}`
+      `Error, ${config.logPrefix} ${issueNumber}, error retrieving the last 2 signers. ${error}`
     );
   }
 };
