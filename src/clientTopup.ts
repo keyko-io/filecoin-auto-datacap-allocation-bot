@@ -59,7 +59,7 @@ export const clientsTopup = async () => {
       )
     )
 
-    const cleanedRawIssues = rawIssues.filter((issue: any) => checkLabel(issue) && checkRequestAndReturnRequest(requestListForEachIssue, issue).isValid)
+    const cleanedRawIssues = rawIssues.filter((issue: any) => !checkLabel(issue).skip && checkRequestAndReturnRequest(requestListForEachIssue, issue).isValid)
 
     const datacapRequestedByEachClientArr = cleanedRawIssues.map((issue: any) => {
       return {
