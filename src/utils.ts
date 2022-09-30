@@ -60,33 +60,51 @@ enum LabelsEnum {
   NEED_DILIGENCE = "status:needsDiligence",
   ERROR = "status:Error",
   TOTAL_DC_REACHED = "issue:TotalDcReached",
-  STATUS_APPROVED ="status:Approved",
-  STATUS_START_SIGN_ON_CHAIN ="status:StartSignOnchain",
+  STATUS_APPROVED = "status:Approved",
+  STATUS_START_SIGN_ON_CHAIN = "status:StartSignOnchain",
 }
 
 export const checkLabel = (issue: any) => {
+
+  let iss = {
+    number: issue.number,
+    label: '',
+    skip: false
+  }
+
   if (issue.labels.find((item: any) => item.name === LabelsEnum.READY_TO_SIGN)) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LabelsEnum.READY_TO_SIGN} is present`);
-    return false
+    iss.skip = true
+    iss.label = LabelsEnum.READY_TO_SIGN
+    return iss
   }
   if (
     issue.labels.find((item: any) => item.name === LabelsEnum.NEED_DILIGENCE)) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LabelsEnum.NEED_DILIGENCE} is present`);
-    return false
+    iss.skip = true
+    iss.label = LabelsEnum.NEED_DILIGENCE
+    return iss
   }
   if (issue.labels.find((item: any) => item.name === LabelsEnum.ERROR)) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LabelsEnum.ERROR} is present`);
-    return false
+    iss.skip = true
+    iss.label = LabelsEnum.ERROR
+    return iss
   }
   if (issue.labels.find((item: any) => item.name === LabelsEnum.TOTAL_DC_REACHED)) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LabelsEnum.TOTAL_DC_REACHED} is present`);
-    return false
+    iss.skip = true
+    iss.label = LabelsEnum.TOTAL_DC_REACHED
+    return iss
   }
   if (issue.labels.find((item: any) => item.name === LabelsEnum.STATUS_APPROVED) || issue.labels.find((item: any) => item.name === LabelsEnum.STATUS_START_SIGN_ON_CHAIN)) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> V3 Msig started the RKH signature round.`);
-    return false
+    iss.skip = true
+    iss.label = LabelsEnum.STATUS_APPROVED
+    return iss
   }
-  return true
+
+  return iss
 }
 
 export const checkRequestAndReturnRequest = (requestListForEachIssue: any[], issue: any) => {

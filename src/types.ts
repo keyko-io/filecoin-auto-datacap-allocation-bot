@@ -50,9 +50,15 @@ export interface ParseRequest {
     errorDetails: string;
 }
 
-export type v3Exception = {
+export type V3Exception = {
     identifier: string;
     notary_msig: string;
     notary_msig_datacap: string;
     notary_msig_issue_number: string;
+}
+
+export type NodeClient = {
+    idAddress: string;
+    address: string;
+    datacap: string;
 }

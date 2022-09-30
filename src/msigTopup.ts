@@ -6,7 +6,7 @@ import { logGeneral, logDebug } from './logger/consoleLogger'
 import { checkLabel } from "./utils";
 import OctokitInitializer from "./initializers/OctokitInitializer";
 import ApiInitializer from "./initializers/ApiInitializer";
-import { v3Exception } from "./types"
+import { V3Exception } from "./types"
 
 
 
@@ -15,7 +15,7 @@ const octokit = OctokitInitializer.getInstance()
 const exceptions = config.exceptionJson
 
 
-export const multisigMonitoring = async () => {
+export const msigTopup = async () => {
     try {
         logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot started - check V3 multisig address DataCap`);
         //Steps:
@@ -153,7 +153,7 @@ export const checkV3LastTwoWeeksAndReturnDatacapToBeRequested = async (baselineA
 //     return
 // } to check labels
 
-export const exceptionMultisigMonitoring = async () => {
+export const exceptionMsigTopup = async () => {
     if (!config.exceptionJson.length) {
         logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot there are no exception msig to check.`);
         return {
@@ -166,7 +166,7 @@ export const exceptionMultisigMonitoring = async () => {
     logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot Checking v3 exception msig, started`);
 
     return await Promise.allSettled(
-        exceptions.map((exception: v3Exception) => new Promise<any>(
+        exceptions.map((exception: V3Exception) => new Promise<any>(
             async (resolve, reject) => {
                 try {
                     //Steps:

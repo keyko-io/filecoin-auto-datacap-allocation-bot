@@ -6,15 +6,9 @@
 
 
 
-import ApiInitializer from '../src/initializers/ApiInitializer'
 import OctokitInitializer from '../src/initializers/OctokitInitializer'
 import { config } from "../src/config";
-import { multisigMonitoring, exceptionMultisigMonitoring, checkV3LastTwoWeeksAndReturnDatacapToBeRequested } from '../src/msigTopup'
-import { fail } from 'assert';
-import { checkLabel } from "../src/utils";
-
-import { resolve } from 'path/posix';
-import { resolveCaa } from 'dns';
+import { msigTopup, exceptionMsigTopup } from '../src/msigTopup'
 const exceptions = config.exceptionJson
 
 
@@ -23,7 +17,7 @@ jest.setTimeout(20000)
 
 /**
  * @TODO test checkV3LastTwoWeeksAndReturnDatacapToBeRequested function
- * @TODO test that the bot is not posting the comment if the label request approved is present
+ * @TODO test that the bot is not posting the comment if the label request approved is present (for test multisig monitoring)
  */
 
 describe('test multisig monitoring', () => {
@@ -38,7 +32,7 @@ describe('test multisig monitoring', () => {
         });
 
         //check comment is posted
-        const msigMonitoring = await multisigMonitoring()
+        const msigMonitoring = await msigTopup()
         expect(msigMonitoring.status).toBe(201)
 
         //check status:approved label is posted
@@ -71,7 +65,7 @@ describe('test multisig monitoring', () => {
         )
 
 
-        const monitoring = await exceptionMultisigMonitoring() as any[]
+        const monitoring = await exceptionMsigTopup() as any[]
 
         const isFulfilled = monitoring.every((item: any) => item.status === 'fulfilled')
 
@@ -106,7 +100,7 @@ describe('test multisig monitoring', () => {
 
     test('bot is not posting the comment is the label \'status:Approved\' is there', async () => {
 
-        const monitoring = await exceptionMultisigMonitoring() as any[]
+        const monitoring = await exceptionMsigTopup() as any[]
 
         const isFulfilled = monitoring.every((item: any) => item.status === 'fulfilled')
 
