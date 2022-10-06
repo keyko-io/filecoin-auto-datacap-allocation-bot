@@ -1,14 +1,8 @@
 [
     {
         "identifier": "yummy",
-        "notary_msig": "t081",
-        "notary_msig_datacap": "45PiB",
-        "notary_msig_issue_number": "635" 
-    },
-    {
-        "identifier": "yummy",
-        "notary_msig": "t081",
+        "notary_msig": "t01022",
         "notary_msig_datacap": "10PiB",
-        "notary_msig_issue_number": "636" 
+        "notary_msig_issue_number": "635" 
     }
 ]
