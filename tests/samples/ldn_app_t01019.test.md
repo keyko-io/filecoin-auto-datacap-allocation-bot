@@ -9,13 +9,13 @@ assignees: ''
 # Large Client Application
 ### PLEASE NOTE ANY APPLICATION SUBMITTED BEFORE THE FINALIZATION OF THE GOVERNING FIP OR THIS REPO WILL BE DISCARDED
 
-To apply as a large client, please fill out the following form. 
+this is a test issue: the client has already 100TiB.
 
 ## Core Information
 - Organization Name: TVCC
 - Website / Social Media: www.tvcc.kr / https://www.youtube.com/c/TVCC-Broadcast
 - Region: Asia excl. Japan
-- Total amount of DataCap being requested (between 500 TiB and 5 PiB): 1PiB
+- Total amount of DataCap being requested (between 500 TiB and 5 PiB): 5PiB
 - Weekly allocation of DataCap requested (usually between 1-100TiB): 100TiB
 - On-chain address for first allocation: t1y6grz7kkjs5wyvg4mp5jqjl3unqt7t5ktqlrf2q
 

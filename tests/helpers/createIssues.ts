@@ -3,10 +3,20 @@ import fs from "fs";
 
 import { config } from "../../src/config"
 import OctokitInitializer from "../../src/initializers/OctokitInitializer";
+import { testTimeout } from "./testUtils";
+
+/**
+ * @info on the test node:
+ * 
+ * t01019 (t1y6grz7kkjs5wyvg4mp5jqjl3unqt7t5ktqlrf2q): client with 5TiB
+ * t01021: legacy msig notary  
+ * t01022: exception msig notary 
+ * t01011 (t1rbfyvybljzd5xcouqjx22juucdj3xbwtro2crwq): client with 80TiB 
+ */
+
+const octokit = OctokitInitializer.getInstance()
 
 export const createIssues = async () => {
-    const octokit = OctokitInitializer.getInstance()
-
 
     //close previous test issues
     const rawIssues = await octokit.paginate(octokit.issues.listForRepo, {
@@ -31,13 +41,19 @@ export const createIssues = async () => {
         }))
     )
 
-
-
-
-
     //create new issues
-    const issueBody = fs.readFileSync(
-        path.resolve(__dirname, '../samples/large_client_application.test.md'),
+    const testIssue1body = fs.readFileSync(
+        path.resolve(__dirname, '../samples/ldn_app_t01019.test.md'),
+        { encoding: 'utf8' },
+    )
+
+    const testIssue2body = fs.readFileSync(
+        path.resolve(__dirname, '../samples/ldn_app_t01011.test.md'),
+        { encoding: 'utf8' },
+    )
+
+    const testIssue3body_real_addr = fs.readFileSync( 
+        path.resolve(__dirname, '../samples/ldn_app_real_address.test.md'),
         { encoding: 'utf8' },
     )
     const commentBody = fs.readFileSync(
@@ -45,31 +61,33 @@ export const createIssues = async () => {
         { encoding: 'utf8' },
     )
 
-    const promOpenArr = []
-    for (let i = 0; i < 2; i++) {
 
-        const openIssue = new Promise<any>(async (resolve, reject) => {
-            try {
+    const testIssue1 = await octokit.issues.create({
+        owner: config.githubLDNOwner,
+        repo: config.githubLDNRepo,
+        title: `TEST clients topup client: t01019 (t1y6grz7kkjs5wyvg4mp5jqjl3unqt7t5ktqlrf2q)`,
+        body: testIssue1body
 
-                const res = await octokit.issues.create({
-                    owner: config.githubLDNOwner,
-                    repo: config.githubLDNRepo,
-                    title: `TEST clients topup #${i}`,
-                    body: issueBody
+    })
 
-                })
-                resolve(res)
-            } catch (error) {
-                reject(error)
-            }
-        })
-        promOpenArr.push(openIssue)
-    }
+    const testIssue2 = await octokit.issues.create({
+        owner: config.githubLDNOwner,
+        repo: config.githubLDNRepo,
+        title: `TEST clients topup client: t01011 (t1rbfyvybljzd5xcouqjx22juucdj3xbwtro2crwq)`,
+        body: testIssue2body
+    })
+
+    const testIssue3 = await octokit.issues.create({
+        owner: config.githubLDNOwner,
+        repo: config.githubLDNRepo,
+        title: `TEST clients topup edge case: t01011 (t1rbfyvybljzd5xcouqjx22juucdj3xbwtro2crwq)`,
+        body: testIssue3body_real_addr
+    })
+
+    const testIssues = [testIssue1, testIssue2]
 
 
-    const issues = await Promise.allSettled(promOpenArr)
-
-    const issueNumbs = issues.map((a: any) => a.value.data.number)
+    const issueNumbs = testIssues.map((a: any) => a.data.number)
 
     //trigger 1st request
     const dcTrigger = []
@@ -92,65 +110,42 @@ export const createIssues = async () => {
         })
         dcTrigger.push(comment)
     }
-
     await Promise.allSettled(dcTrigger)
+    await testTimeout
 
-    return issues.map((i:any)=> i.value)
+    const labelReset = resetLabel(issueNumbs)
+    await Promise.allSettled(labelReset)
 
-
-
-
-
-
-
-    // const resetLabels = []
-    // for (let issue_number of issueNumbs) {
-
-    //     const labelReset = new Promise<any>(async (resolve, reject) => {
-    //         try {
-
-    //             await octokit.rest.issues.removeAllLabels({
-    //                 owner: config.githubLDNOwner,
-    //                 repo: config.githubNotaryRepo,
-    //                 issue_number
-    //             });
-
-    //             const res = octokit.issues.addLabels({
-    //                 owner: config.githubLDNOwner,
-    //                 repo: config.githubLDNRepo,
-    //                 issue_number,
-    //                 labels: ['state:Approved', 'state:Granted']
-    //             })
-    //             resolve(res)
-    //         } catch (error) {
-    //             reject(error)
-    //         }
-    //     })
-    //     resetLabels.push(labelReset)
-    // }
-
-    // console.log(
-
-    // )
-
-
-    // const xxx = await setTimeout(7000, async () =>
-
-    //     Promise.allSettled(resetLabels)
-
-    // )
-    // xxx()
-
-
-    // console.log(xxx())
-
-
-
-
-
-
-
-
-
+    return issueNumbs
 
 }
+
+export const resetLabel = (issueNumbs: any[]) => {
+    const resetLabels = [];
+    for (let issue_number of issueNumbs) {
+
+        const labelReset = new Promise<any>(async (resolve, reject) => {
+            try {
+                console.log(issue_number, issue_number, config.githubLDNOwner, config.githubNotaryRepo)
+                await octokit.rest.issues.removeAllLabels({
+                    owner: config.githubLDNOwner,
+                    repo: config.githubLDNRepo,
+                    issue_number
+                });
+
+                const res = octokit.issues.addLabels({
+                    owner: config.githubLDNOwner,
+                    repo: config.githubLDNRepo,
+                    issue_number,
+                    labels: ['state:Approved', 'state:Granted']
+                });
+                resolve(res);
+            } catch (error) {
+                reject(error);
+            }
+        });
+        resetLabels.push(labelReset);
+    }
+    return resetLabels
+}
+

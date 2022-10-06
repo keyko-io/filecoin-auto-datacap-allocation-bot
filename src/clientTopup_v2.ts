@@ -1,6 +1,6 @@
 import { config } from "./config";
-import { bytesToiB, anyToBytes, checkRequestAndReturnRequest, commentsForEachIssue } from "./utils";
-import { newAllocationRequestComment, statsComment } from "./comments";
+import { bytesToiB, anyToBytes,  findClient } from "./utils";
+import {  newAllocationRequestComment_V2, statsComment_v2 } from "./comments";
 import {
   parseReleaseRequest,
   parseApprovedRequestWithSignerAddress,
@@ -10,7 +10,7 @@ import axios from "axios";
 import { EVENT_TYPE, MetricsApiParams } from "./Metrics";
 import { logGeneral, logWarn, logDebug, logError } from './logger/consoleLogger'
 import { checkLabel } from "./utils";
-import { IssueInfo, NodeClient, ParseRequest } from "./types";
+import {  NodeClient, ParseRequest } from "./types";
 import OctokitInitializer from "./initializers/OctokitInitializer";
 import ApiInitializer from "./initializers/ApiInitializer";
 const { callMetricsApi, } = require("@keyko-io/filecoin-verifier-tools/metrics/metrics");
@@ -19,6 +19,85 @@ const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
 const api = ApiInitializer.getInstance()
 const octokit = OctokitInitializer.getInstance()
+
+
+
+/***
+ * @TODO post request comments <--- DONE
+ * @TODO stats comments <---  DONE
+ * @TODO testsuite <---  DONE
+ * @TODO edge cases : client has 0 datacap <---  DONE
+ * @TODO test Clients API (edge case) <---
+ * @TODO insert all logs
+ * @TODO send all metrics
+ * @TODO documenting 
+ * 
+ * 
+ */
+
+export const clientsTopup_v2 = async () => {
+  try {
+
+
+    const apiClients = await getApiClients()
+
+    let issuez = await getIssuez();
+
+    const nodeClientz = await getNodeClients()
+
+    //match issues in repo with same address.
+    // if a client has 0 dc, it is not retrieved by getNodeClients
+    // so I should find a way to include also issues with at least 1 allocation.... 
+    const match = matchGithubAndNodeClients(issuez, nodeClientz, apiClients)
+
+    // find the history of allocation for each issue
+    // find the last request 
+    const issuesAndCommentz = await matchIssuesAndComments(match)
+    // console.log('commentsForIssue', issuesAndComments)
+
+    // check if each issue deserve a new request
+    const issuesAndMargin = checkPostNewRequest(issuesAndCommentz);
+    // console.log(issuesAndMargin)
+
+
+    // calculate how much dc should be allocated
+    const issuesAndNextRequest = matchIssuesAndNextRequest(issuesAndMargin)
+    // console.log('issuesAndNextRequest',issuesAndNextRequest) 
+
+    //posts all the requests
+    const postRequestz = (await postRequestComments(issuesAndNextRequest)).filter((i: any) => i.status === 'fulfilled').map((i: any) => i.value)
+    // console.log('triggerRequest', postRequestz)
+
+    //should post stats comments
+    const postStatz = await postStatsComments(issuesAndNextRequest, apiClients)
+    // console.log('postStatz', postStatz)
+
+    return {
+      postRequestz,
+      postStatz
+    }
+
+  } catch (error) {
+    console.log("error listing the issues, generic error in the bot", error)
+  }
+}
+
+export const getIssuez = async () => {
+  try {
+    let issuez = await octokit.paginate(octokit.issues.listForRepo, {
+      owner,
+      repo,
+      state: "open",
+    });
+
+    //need to filter issues by label 
+    //need to see what issue already had an allocation request
+    issuez = issuez.filter((issue: any) => !checkLabel(issue).skip);
+    return issuez;
+  } catch (error) {
+    console.log(error)
+  }
+}
 
 // get verified clients from the node
 export const getNodeClients = async (): Promise<NodeClient[]> => {
@@ -46,8 +125,12 @@ export const getNodeClients = async (): Promise<NodeClient[]> => {
   }
 }
 
-/**@todo see if there is somewhere an 'issue' type */
-export const matchGithubAndNodeClients = (issues: any[], nodeClients: NodeClient[]): any[] => {
+/** 
+ * 
+ * @edgeCase it retrieves the client from the dmob api if it has 0 dc 
+ * @todo test edge case
+ */
+export const matchGithubAndNodeClients = (issues: any[], nodeClients: NodeClient[], apiClients:any) => {
   const parsedIssues = issues.filter((i: any) => parseIssue(i.body).correct)
     .map((i: any) => {
       return {
@@ -60,19 +143,42 @@ export const matchGithubAndNodeClients = (issues: any[], nodeClients: NodeClient
 
   for (let i of parsedIssues) {
     for (let n of nodeClients) {
+
       if (n.address === i.parsed.address || n.idAddress === i.parsed.address) {
+
         match.push(
           {
             ...i,
             ...n
           }
         )
+        // continue
+      }
+      else {
+        //edge case
+        const dmobClient = findClient(apiClients,i.parsed.address)
+        if (dmobClient) {
+          match.push(
+            {
+              ...i,
+              idAddress: dmobClient.addressId,
+              address: dmobClient.address,
+              datacap: dmobClient.allowance
+            })
+        }
+
       }
     }
   }
   return match
+
 }
 
+/**
+ * 
+ * @param match 
+ * @returns issues matched with all its comments
+ */
 export const matchIssuesAndComments = async (match: any[]) => {
   return await Promise.all(
     match.map((issue: any) => new Promise<any>(async (resolve, reject) => {
@@ -105,10 +211,14 @@ export const matchIssuesAndComments = async (match: any[]) => {
   );
 }
 
+/**
+ * 
+ * @param issues 
+ * @returns issue with amountToRequest object
+ */
 export const matchIssuesAndNextRequest = (issues: any[]) => {
   const issuesAndNextRequest = []
   for (let elem of issues) {
-    console.log(elem)
     if (elem.postRequest) {
       const requestNumber = elem.issue.numberOfRequests
       const totalDcGrantedForClientSoFar = calculateTotalDcGrantedSoFar(elem)
@@ -123,7 +233,8 @@ export const matchIssuesAndNextRequest = (issues: any[]) => {
 }
 
 export const calculateTotalDcGrantedSoFar = (issue: any) => {
-  return issue.issue.requests.reduce((acc: any, el: any) => acc + anyToBytes(el.allocationDatacap))
+  const dc = issue.issue.requests.reduce((acc: any, el: any) => acc + anyToBytes(el.allocationDatacap), 0)
+  return dc
 }
 
 export const calculateAllocationToRequest = (
@@ -174,7 +285,7 @@ export const calculateAllocationToRequest = (
   }
 
 
-  const sumTotalAmountWithNextRequest = nextRequest + totalDcGrantedForClientSoFar
+  const sumTotalAmountWithNextRequest = Math.floor(nextRequest + totalDcGrantedForClientSoFar)
   logDebug(`${config.logPrefix} ${issueNumber} sumTotalAmountWithNextRequest (sum next request + total datcap granted to client so far): ${bytesToiB(sumTotalAmountWithNextRequest)}`)
 
   let retObj: any = {}
@@ -206,11 +317,13 @@ export const calculateAllocationToRequest = (
 export const checkPostNewRequest = (issuesAndComments: any[]) => {
   const postRequest = []
   for (let elem of issuesAndComments) {
+    // console.log(elem.issue)
     elem.postRequest = false
     let margin = 0
     const last = anyToBytes(elem.issue.lastRequest.allocationDatacap)
     const remaining = parseInt(elem.issue.datacap)
-
+    // console.log('last bytes, ib', elem.issue.number, last, elem.issue.lastRequest.allocationDatacap)
+    // console.log('remaining bytes, ib', elem.issue.number, elem.issue.datacap, bytesToiB(elem.issue.datacap))
     if (remaining && last)
       margin = remaining / last
 
@@ -224,193 +337,56 @@ export const checkPostNewRequest = (issuesAndComments: any[]) => {
   return postRequest
 }
 
-export const clientsTopup_v2 = async () => {
-  try {
-
-
-    let issues = await octokit.paginate(octokit.issues.listForRepo, {
-      owner,
-      repo,
-      state: "open",
-    });
-
-    //need to filter issues by label 
-    //need to see what issue already had an allocation request
-
-    issues = issues.filter((issue: any) => !checkLabel(issue).skip)
-
-
-    // t01005 = t1lxlfkondf4266ofojl3qg2nfjw44mmh7sgmyqna
-    // t01019 = t1y6grz7kkjs5wyvg4mp5jqjl3unqt7t5ktqlrf2q
-    const nodeClients = await getNodeClients()
-    // console.log('clientsAdddress', nodeClients)
-
-    //match issues in repo with same address.
-    const match: any[] = matchGithubAndNodeClients(issues, nodeClients)
-    // console.log(match)
-
-    // find the history of allocation for each issue
-    // find the last request 
-    const issuesAndComments = await matchIssuesAndComments(match)
-    // console.log('commentsForIssue', issuesAndComments)
-
-    //should check if each issue deserve a new request
-
-    const issuesAndMargin = checkPostNewRequest(issuesAndComments);
-    // console.log(issuesAndMargin)
-
-    //I have to try using a client with 0 dc. it is still listed from getNodeClients?
-    // should calculate how much dc should be allocated
-
-    const issuesAndNextRequest = matchIssuesAndNextRequest(issuesAndMargin)
-    console.log(issuesAndNextRequest) //TODO test with a client with DC = 0
-
-    //should trigger all the requests
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  } catch (error) {
-    console.log("error listing the issues, generic error in the bot", error)
-  }
-};
-
-
-
-export const commentStats = async (list: IssueInfo[]) => {
-  try {
-    const apiClients = await axios({
-      method: "GET",
-      url: `${config.filpusApi}/getVerifiedClients`,
-      headers: {
-        "x-api-key": config.filplusApiKey,
-      },
-    });
-
-    const clients = apiClients.data.data;
-
-    //get stats & comment
-    const promArr = []
-    for (const info of list) {
-      promArr.push(new Promise<void>(async (resolve, reject) => {
-        // const apiElement = clients.find((item: any) => item.address === "f1ztll3caq5m3qivovzipywtzqc75ebgpz4vieyiq")
-        const apiElement = clients.find(
-          (item: any) => item.address === info.address
-        );
-        if (apiElement === undefined) {
-          throw new Error(
-            `Error, stat comment of ${config.logPrefix} ${info.issueNumber} failed because the bot couldn't find the correspondent address in the filplus dashboard`
+export const postRequestComments = async (issuesAndNextRequest: any[]) => {
+  return await Promise.allSettled(
+    issuesAndNextRequest.filter((elem: any) => elem.postRequest)
+      .map((elem: any) => new Promise<any>(async (resolve, reject) => {
+        try {
+          // console.log(
+          //   'elem.issue.',
+          //   elem.issue
+          // )
+          const body = newAllocationRequestComment_V2(
+            elem.issue.address,
+            elem.amountToRequest.amount,
+            elem.issue.lastRequest.notaryAddress,
+            elem.issue.numberOfRequests + 1
           );
-        }
 
-        const verifiers: any = await octokit.request(
-          `GET ${config.notariersJsonPath}`
-        );
-        const notaries = JSON.parse(verifiers.data).notaries;
-
-        const addresses = info.lastTwoSigners;
-        const githubHandles = addresses.map(
-          (addr: any) =>
-            notaries.find(
-              (notar: any) => notar.ldn_config.signing_address === addr
-            ).github_user[0]
-        );
-
-        // console.log("githubHandles", githubHandles)
-        const body = statsComment(
-          info.msigAddress,
-          info.address,
-          info.topProvider,
-          info.nDeals,
-          info.previousDcAllocated,
-          info.dcAllocationRequested,
-          info.nStorageProviders,
-          info.remainingDatacap,
-          info.actorAddress,
-          githubHandles,
-          info.totalDcGrantedForClientSoFar,
-          info.totaldDcRequestedByClient,
-          info.deltaTotalDcAndDatacapGranted,
-          info.rule
-        );
-
-        // console.log("CREATE STATS COMMENT", info.issueNumber)
-        if (!(process.env.LOGGER_ENVIRONMENT === "test")) {
-          await octokit.issues.createComment({
+          let res: any = {};
+          // if (!(process.env.LOGGER_ENVIRONMENT === "test")) {
+          res.commentResult = await octokit.issues.createComment({
             owner,
             repo,
-            issue_number: info.issueNumber,
+            issue_number: elem.issue.number,
             body,
           });
+
+          if (res.commentResult.status === 201) {
+
+            res.removeLabels = await octokit.issues.removeAllLabels({
+              owner,
+              repo,
+              issue_number: elem.issue.number,
+            });
+
+            res.addLabels = await octokit.issues.addLabels({
+              owner,
+              repo,
+              issue_number: elem.issue.number,
+              labels: ["bot:readyToSign", "state:Approved"],
+            });
+
+
+          }
+          resolve({ res, body });
+          // }
+        } catch (error) {
+          reject(error);
         }
-        logGeneral(`CREATE STATS COMMENT, issue n ${info.issueNumber}`);
-        logGeneral(`Posted stats comment, ${config.logPrefix} ${info.issueNumber}`);
-        resolve()
       }))
-
-    }
-
-    await Promise.allSettled(promArr)
-  } catch (error) {
-    logError(error);
-  }
-};
-
-
-
-
-
-export const findDatacapRequested = async (
-  issueComments: any[]
-): Promise<
-  {
-    multisigMessage: boolean;
-    correct: boolean;
-    notaryAddress: string;
-    clientAddress: string;
-    allocationDatacap: string;
-    allocationDataCapAmount: string[];
-  }[]
-> => {
-  try {
-    let requestList: any[] = [];
-    for (let i = 0; i < issueComments.length; i++) {
-      const parseRequest = await parseReleaseRequest(issueComments[i].body); //datacap allocation requested
-      if (parseRequest.correct) {
-        requestList.push(parseRequest);
-      }
-    }
-    return requestList;
-  } catch (error) {
-    console.log(error);
-  }
-};
+  )
+}
 
 export const retrieveLastTwoSigners = (
   issueComments: any,
@@ -439,8 +415,86 @@ export const retrieveLastTwoSigners = (
       `Error, ${config.logPrefix} ${issueNumber}, error retrieving the last 2 signers. ${error}`
     );
   }
-};
+}
+
+export const postStatsComments = async (issuesAndNextRequest: any[], apiClients:any) => {
+  try {
 
 
 
+    const clients = apiClients.data.data;
+
+    //GET NOTARIES FROM JSON
+    let notaries: any = await octokit.request(
+      `GET ${config.notariersJsonPath}`
+    );
+    notaries = JSON.parse(notaries.data).notaries;
+
+    //POST STAT COMMENT
+    return await Promise.allSettled(issuesAndNextRequest.map((elem: any) => new Promise<any>(async (resolve, reject) => {
+      try {
+
+        let client = clients.find((item: any) => item.address === elem.issue.address)
+
+        const addresses = ['addr1', 'addr2'] // get this frommm....???
+        const githubHandles = addresses.map(
+          (addr: any) =>
+            notaries.find(
+              (nt: any) => nt.ldn_config.signing_address === addr
+            )?.github_user[0]
+        )
+
+        const content = {
+          msigAddress: elem.issue.lastRequest.notaryAddress,
+          address: elem.issue.address,
+          topProvider: client ? client.topProvider : 'not found',
+          nDeals: client ? client.nDeals : 'not found',
+          previousDcAllocated: elem.issue.lastRequest.allocationDatacap,
+          dcAllocationRequested: elem.amountToRequest.amount,
+          nStorageProviders: client ? client.nStorageProviders : 'not found',
+          remainingDatacap: bytesToiB(elem.issue.datacap),
+          actorAddress: elem.issue.idAddress,
+          githubHandles: githubHandles ? githubHandles : ['not found'],
+          totalDcGrantedForClientSoFar: 'info.totalDcGrantedForClientSoFar', // info.totalDcGrantedForClientSoFar
+          totaldDcRequestedByClient: elem.issue.parsed.datacapRequested,
+          deltaTotalDcAndDatacapGranted: 'info.totalDcGrantedForClientSoFar', // info.deltaTotalDcAndDatacapGranted,
+          rule: elem.amountToRequest.rule
+        }
+
+        const body = statsComment_v2(content)
+
+        resolve({
+          call: await octokit.issues.createComment({
+            owner,
+            repo,
+            issue_number: elem.issue.number,
+            body,
+          }),
+          content
+
+        }
+        )
+
+      } catch (error) {
+        reject(error)
+      }
+    })
+    ))
+
+  } catch (error) {
+    logError(error);
+  }
+}
+
+
+
+async function getApiClients() {
+  return await axios({
+    method: "GET",
+    url: `${config.filpusApi}/getVerifiedClients`,
+    headers: {
+      "x-api-key": config.filplusApiKey,
+    },
+  });
+}
 

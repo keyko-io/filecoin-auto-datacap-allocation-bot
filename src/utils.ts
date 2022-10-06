@@ -149,3 +149,9 @@ export const commentsForEachIssue = async (octokit: any, rawIssues: any) => {
       return { issueNumber: issue.number, comments }
     }))
 }
+
+export const findClient = (apiClients: any, address: any) => {
+  const el = apiClients.data.data.find((item: any) => item.address === address)
+  if (el) return el
+  else return false
+}
