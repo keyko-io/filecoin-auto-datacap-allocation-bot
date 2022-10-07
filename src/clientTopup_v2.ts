@@ -1,6 +1,6 @@
 import { config } from "./config";
-import { bytesToiB, anyToBytes,  findClient } from "./utils";
-import {  newAllocationRequestComment_V2, statsComment_v2 } from "./comments";
+import { bytesToiB, anyToBytes, findClient, getApiClients, getDeltaDcAndDcGranted, getTotalDcGrantedSoFar, getGithubHandlesForAddress, calculateTotalDcGrantedSoFar, calculateAllocationToRequest } from "./utils";
+import { newAllocationRequestComment_V2, statsComment_v2 } from "./comments";
 import {
   parseReleaseRequest,
   parseApprovedRequestWithSignerAddress,
@@ -10,7 +10,7 @@ import axios from "axios";
 import { EVENT_TYPE, MetricsApiParams } from "./Metrics";
 import { logGeneral, logWarn, logDebug, logError } from './logger/consoleLogger'
 import { checkLabel } from "./utils";
-import {  NodeClient, ParseRequest } from "./types";
+import { NodeClient, ParseRequest } from "./types";
 import OctokitInitializer from "./initializers/OctokitInitializer";
 import ApiInitializer from "./initializers/ApiInitializer";
 const { callMetricsApi, } = require("@keyko-io/filecoin-verifier-tools/metrics/metrics");
@@ -23,21 +23,16 @@ const octokit = OctokitInitializer.getInstance()
 
 
 /***
- * @TODO post request comments <--- DONE
- * @TODO stats comments <---  DONE
- * @TODO testsuite <---  DONE
- * @TODO edge cases : client has 0 datacap <---  DONE
- * @TODO test Clients API (edge case) <---
- * @TODO insert all logs
- * @TODO send all metrics
- * @TODO documenting 
- * 
- * 
+ * @TODO testProduction 
  */
 
+/**
+ * @info that's the refactored version of clientTopup
+ * @returns postRequests and postStats
+ */
 export const clientsTopup_v2 = async () => {
   try {
-
+    logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot started - check issues and clients DataCap.`)
 
     const apiClients = await getApiClients()
 
@@ -53,24 +48,25 @@ export const clientsTopup_v2 = async () => {
     // find the history of allocation for each issue
     // find the last request 
     const issuesAndCommentz = await matchIssuesAndComments(match)
-    // console.log('commentsForIssue', issuesAndComments)
 
     // check if each issue deserve a new request
     const issuesAndMargin = checkPostNewRequest(issuesAndCommentz);
-    // console.log(issuesAndMargin)
 
 
     // calculate how much dc should be allocated
     const issuesAndNextRequest = matchIssuesAndNextRequest(issuesAndMargin)
-    // console.log('issuesAndNextRequest',issuesAndNextRequest) 
 
     //posts all the requests
     const postRequestz = (await postRequestComments(issuesAndNextRequest)).filter((i: any) => i.status === 'fulfilled').map((i: any) => i.value)
-    // console.log('triggerRequest', postRequestz)
 
     //should post stats comments
     const postStatz = await postStatsComments(issuesAndNextRequest, apiClients)
-    // console.log('postStatz', postStatz)
+
+
+    logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot ended.`);
+    logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot issues commented: ${postRequestz.length ? postRequestz.length : 0}`)
+    if (postRequestz.length)
+      logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot - issues numbers: ${postRequestz.map((i: any) => i.issue_number)}`);
 
     return {
       postRequestz,
@@ -82,6 +78,10 @@ export const clientsTopup_v2 = async () => {
   }
 }
 
+/**
+ * 
+ * @returns filtered issues from github
+ */
 export const getIssuez = async () => {
   try {
     let issuez = await octokit.paginate(octokit.issues.listForRepo, {
@@ -93,6 +93,7 @@ export const getIssuez = async () => {
     //need to filter issues by label 
     //need to see what issue already had an allocation request
     issuez = issuez.filter((issue: any) => !checkLabel(issue).skip);
+    logGeneral(`${config.logPrefix} 0 Issues fetched: ${issuez.length}`)
     return issuez;
   } catch (error) {
     console.log(error)
@@ -103,7 +104,6 @@ export const getIssuez = async () => {
 export const getNodeClients = async (): Promise<NodeClient[]> => {
   try {
     let nodeClients = await api.listVerifiedClients()
-    // console.log(nodeClients)
 
     nodeClients = await Promise.all(
       nodeClients.map((client: any) => new Promise<any>(async (resolve, reject) => {
@@ -126,11 +126,10 @@ export const getNodeClients = async (): Promise<NodeClient[]> => {
 }
 
 /** 
- * 
+ * @returns info from issue + info from node
  * @edgeCase it retrieves the client from the dmob api if it has 0 dc 
- * @todo test edge case
  */
-export const matchGithubAndNodeClients = (issues: any[], nodeClients: NodeClient[], apiClients:any) => {
+export const matchGithubAndNodeClients = (issues: any[], nodeClients: NodeClient[], apiClients: any) => {
   const parsedIssues = issues.filter((i: any) => parseIssue(i.body).correct)
     .map((i: any) => {
       return {
@@ -156,7 +155,8 @@ export const matchGithubAndNodeClients = (issues: any[], nodeClients: NodeClient
       }
       else {
         //edge case
-        const dmobClient = findClient(apiClients,i.parsed.address)
+        logWarn(`${config.logPrefix} ${i.number} - It looks like the client has 0B datacap remaining.`)
+        const dmobClient = findClient(apiClients, i.parsed.address)
         if (dmobClient) {
           match.push(
             {
@@ -219,6 +219,7 @@ export const matchIssuesAndComments = async (match: any[]) => {
 export const matchIssuesAndNextRequest = (issues: any[]) => {
   const issuesAndNextRequest = []
   for (let elem of issues) {
+    console.log(elem)
     if (elem.postRequest) {
       const requestNumber = elem.issue.numberOfRequests
       const totalDcGrantedForClientSoFar = calculateTotalDcGrantedSoFar(elem)
@@ -232,98 +233,99 @@ export const matchIssuesAndNextRequest = (issues: any[]) => {
   return issuesAndNextRequest
 }
 
-export const calculateTotalDcGrantedSoFar = (issue: any) => {
-  const dc = issue.issue.requests.reduce((acc: any, el: any) => acc + anyToBytes(el.allocationDatacap), 0)
-  return dc
-}
+// export const calculateTotalDcGrantedSoFar = (issue: any) => {
+//   const dc = issue.issue.requests.reduce((acc: any, el: any) => acc + anyToBytes(el.allocationDatacap), 0)
+//   return dc
+// }
 
-export const calculateAllocationToRequest = (
-  requestNumber: number,
-  totalDcGrantedForClientSoFar: number,
-  totaldDcRequestedByClient: number,
-  weeklyDcAllocationBytes: number,
-  issueNumber: any
-) => {
-  logDebug(`${config.logPrefix} ${issueNumber} weekly datacap requested by client: ${bytesToiB(weeklyDcAllocationBytes)} ${weeklyDcAllocationBytes}B`)
+// export const calculateAllocationToRequest = (
+//   requestNumber: number,
+//   totalDcGrantedForClientSoFar: number,
+//   totaldDcRequestedByClient: number,
+//   weeklyDcAllocationBytes: number,
+//   issueNumber: any
+// ) => {
+//   logDebug(`${config.logPrefix} ${issueNumber} weekly datacap requested by client: ${bytesToiB(weeklyDcAllocationBytes)} ${weeklyDcAllocationBytes}B`)
 
-  logDebug(`${config.logPrefix} ${issueNumber} total datacap requested by client: ${bytesToiB(totaldDcRequestedByClient)}, ${totaldDcRequestedByClient}B`)
-
-
-  let nextRequest = 0;
-  let rule = ""
-  let condition = true
-  // const allocation = weeklyDcAllocationBytes <= tenPercentAllocationBytes ? weeklyDcAllocationBytes : tenPercentAllocationBytes;
-  // console.log("req number:", requestNumber)
-  switch (requestNumber) {
-    case 0: //1nd req (won't never happen here :) - 50%
-      condition = weeklyDcAllocationBytes / 2 <= totaldDcRequestedByClient * 0.05
-      nextRequest = condition ? weeklyDcAllocationBytes / 2 : totaldDcRequestedByClient * 0.05;
-      rule = condition ? `50% of weekly dc amount requested` : `5% of total dc amount requested`
-      break;
-    case 1: //2nd req - 100% of the amount in the issue
-      condition = weeklyDcAllocationBytes <= totaldDcRequestedByClient * 0.1
-      nextRequest = condition ? weeklyDcAllocationBytes : totaldDcRequestedByClient * 0.1;
-      rule = condition ? `100% of weekly dc amount requested` : `10% of total dc amount requested`
-      break;
-    case 2: //3rd req - 200% of the amount in the issue
-      condition = weeklyDcAllocationBytes * 2 <= totaldDcRequestedByClient * 0.2
-      nextRequest = condition ? weeklyDcAllocationBytes * 2 : totaldDcRequestedByClient * 0.2;
-      rule = condition ? `200% of weekly dc amount requested` : `20% of total dc amount requested`
-      break;
-    case 3: //4th req - 400% of the amount in the issue
-      condition = weeklyDcAllocationBytes * 4 <= totaldDcRequestedByClient * 0.4
-      nextRequest = condition ? weeklyDcAllocationBytes * 4 : totaldDcRequestedByClient * 0.4;
-      rule = condition ? `400% of weekly dc amount requested` : `40% of total dc amount requested`
-      break;
-
-    default:
-      //5th req on - 800% of the amount in the issue
-      condition = weeklyDcAllocationBytes * 8 <= totaldDcRequestedByClient * 0.8
-      nextRequest = condition ? weeklyDcAllocationBytes * 8 : totaldDcRequestedByClient * 0.8;
-      rule = condition ? `800% of weekly dc amount requested` : `80% of total dc amount requested`
-      break;
-  }
+//   logDebug(`${config.logPrefix} ${issueNumber} total datacap requested by client: ${bytesToiB(totaldDcRequestedByClient)}, ${totaldDcRequestedByClient}B`)
 
 
-  const sumTotalAmountWithNextRequest = Math.floor(nextRequest + totalDcGrantedForClientSoFar)
-  logDebug(`${config.logPrefix} ${issueNumber} sumTotalAmountWithNextRequest (sum next request + total datcap granted to client so far): ${bytesToiB(sumTotalAmountWithNextRequest)}`)
+//   let nextRequest = 0;
+//   let rule = ""
+//   let condition = true
+//   switch (requestNumber) {
+//     case 0: //1nd req (won't never happen here :) - 50%
+//       condition = weeklyDcAllocationBytes / 2 <= totaldDcRequestedByClient * 0.05
+//       nextRequest = condition ? weeklyDcAllocationBytes / 2 : totaldDcRequestedByClient * 0.05;
+//       rule = condition ? `50% of weekly dc amount requested` : `5% of total dc amount requested`
+//       break;
+//     case 1: //2nd req - 100% of the amount in the issue
+//       condition = weeklyDcAllocationBytes <= totaldDcRequestedByClient * 0.1
+//       nextRequest = condition ? weeklyDcAllocationBytes : totaldDcRequestedByClient * 0.1;
+//       rule = condition ? `100% of weekly dc amount requested` : `10% of total dc amount requested`
+//       break;
+//     case 2: //3rd req - 200% of the amount in the issue
+//       condition = weeklyDcAllocationBytes * 2 <= totaldDcRequestedByClient * 0.2
+//       nextRequest = condition ? weeklyDcAllocationBytes * 2 : totaldDcRequestedByClient * 0.2;
+//       rule = condition ? `200% of weekly dc amount requested` : `20% of total dc amount requested`
+//       break;
+//     case 3: //4th req - 400% of the amount in the issue
+//       condition = weeklyDcAllocationBytes * 4 <= totaldDcRequestedByClient * 0.4
+//       nextRequest = condition ? weeklyDcAllocationBytes * 4 : totaldDcRequestedByClient * 0.4;
+//       rule = condition ? `400% of weekly dc amount requested` : `40% of total dc amount requested`
+//       break;
 
-  let retObj: any = {}
-  if (sumTotalAmountWithNextRequest > totaldDcRequestedByClient) {
-    logDebug(`${config.logPrefix} ${issueNumber} sumTotalAmountWithNextRequest is higher than total datacap requested by client (${totaldDcRequestedByClient}, requesting the difference of total dc requested - total datacap granted so far)`)
-    // console.log("totaldDcRequestedByClient", totaldDcRequestedByClient)
-    // console.log("totalDcGrantedForClientSoFar", totalDcGrantedForClientSoFar)
-    nextRequest = totaldDcRequestedByClient - totalDcGrantedForClientSoFar
-    // console.log("nextRequest in if", nextRequest)
-  }
-  if (nextRequest <= 0) {
-    logDebug(`${config.logPrefix} ${issueNumber} - seems that the client reached the total datacap request in this issue. This should be checked and closed`)
-    retObj = { totalDatacapReached: true }
-    return retObj
-  }
+//     default:
+//       //5th req on - 800% of the amount in the issue
+//       condition = weeklyDcAllocationBytes * 8 <= totaldDcRequestedByClient * 0.8
+//       nextRequest = condition ? weeklyDcAllocationBytes * 8 : totaldDcRequestedByClient * 0.8;
+//       rule = condition ? `800% of weekly dc amount requested` : `80% of total dc amount requested`
+//       break;
+//   }
 
 
-  logDebug(`${config.logPrefix} ${issueNumber} nextRequest ${bytesToiB(nextRequest)}`)
-  logDebug(`${config.logPrefix} ${issueNumber} allocation rule: ${rule}`)
-  retObj = {
-    amount: bytesToiB(Math.floor(nextRequest)),
-    rule,
-    totalDatacapReached: false
-  }
+//   const sumTotalAmountWithNextRequest = Math.floor(nextRequest + totalDcGrantedForClientSoFar)
+//   logDebug(`${config.logPrefix} ${issueNumber} sumTotalAmountWithNextRequest (sum next request + total datcap granted to client so far): ${bytesToiB(sumTotalAmountWithNextRequest)}`)
 
-  return retObj
-}
+//   let retObj: any = {}
+//   if (sumTotalAmountWithNextRequest > totaldDcRequestedByClient) {
+//     logDebug(`${config.logPrefix} ${issueNumber} sumTotalAmountWithNextRequest is higher than total datacap requested by client (${totaldDcRequestedByClient}, requesting the difference of total dc requested - total datacap granted so far)`)
+//     nextRequest = totaldDcRequestedByClient - totalDcGrantedForClientSoFar
+//   }
+//   if (nextRequest <= 0) {
+//     logDebug(`${config.logPrefix} ${issueNumber} - seems that the client reached the total datacap request in this issue. This should be checked and closed`)
+//     retObj = {
+//       amount: 0,
+//       rule: 'total dc reached',
+//       totalDatacapReached: false
+//     }
+//     return retObj
+//   }
 
+
+//   logDebug(`${config.logPrefix} ${issueNumber} nextRequest ${bytesToiB(nextRequest)}`)
+//   logDebug(`${config.logPrefix} ${issueNumber} allocation rule: ${rule}`)
+//   retObj = {
+//     amount: bytesToiB(Math.floor(nextRequest)),
+//     rule,
+//     totalDatacapReached: false
+//   }
+
+//   return retObj
+// }
+
+/**
+ * 
+ * @param issuesAndComments 
+ * @returns issuesAndComments + postRequest: boolean, margin: number
+ */
 export const checkPostNewRequest = (issuesAndComments: any[]) => {
   const postRequest = []
   for (let elem of issuesAndComments) {
-    // console.log(elem.issue)
     elem.postRequest = false
     let margin = 0
     const last = anyToBytes(elem.issue.lastRequest.allocationDatacap)
     const remaining = parseInt(elem.issue.datacap)
-    // console.log('last bytes, ib', elem.issue.number, last, elem.issue.lastRequest.allocationDatacap)
-    // console.log('remaining bytes, ib', elem.issue.number, elem.issue.datacap, bytesToiB(elem.issue.datacap))
     if (remaining && last)
       margin = remaining / last
 
@@ -331,21 +333,46 @@ export const checkPostNewRequest = (issuesAndComments: any[]) => {
       elem.postRequest = true
 
     elem.margin = margin;
+    logGeneral(`${config.logPrefix} ${elem.issue.number} datacap remaining / datacp allocated: ${(margin * 100).toFixed(2)} %`)
 
     postRequest.push(elem)
   }
   return postRequest
 }
 
+/**
+ * 
+ * @param issuesAndNextRequest 
+ * @returns the posted request comments
+ * @sends SUBSEQUENT_DC_REQUEST event to dmob
+ * @todo test this part: if (elem.amountToRequest.totalDatacapReached) { 
+ * @todo test metrics sending 
+ */
 export const postRequestComments = async (issuesAndNextRequest: any[]) => {
   return await Promise.allSettled(
     issuesAndNextRequest.filter((elem: any) => elem.postRequest)
       .map((elem: any) => new Promise<any>(async (resolve, reject) => {
         try {
-          // console.log(
-          //   'elem.issue.',
-          //   elem.issue
-          // )
+          let res: any = {};
+          if (elem.amountToRequest.totalDatacapReached) {
+            const dcReachedBody = `The issue reached the total datacap requested. This should be closed`
+            res.commentResult = await octokit.issues.createComment({
+              owner,
+              repo,
+              issue_number: elem.issue.number,
+              body: dcReachedBody,
+            })
+            await octokit.issues.addLabels({
+              owner,
+              repo,
+              issue_number: elem.issue.number,
+              labels: ["issue:TotalDcReached"],
+            });
+            logGeneral(`${config.logPrefix} ${elem.issue.number}, posted close request comment.`)
+            resolve({ res, issue_number: elem.issue.number })
+          }
+
+
           const body = newAllocationRequestComment_V2(
             elem.issue.address,
             elem.amountToRequest.amount,
@@ -353,7 +380,7 @@ export const postRequestComments = async (issuesAndNextRequest: any[]) => {
             elem.issue.numberOfRequests + 1
           );
 
-          let res: any = {};
+
           // if (!(process.env.LOGGER_ENVIRONMENT === "test")) {
           res.commentResult = await octokit.issues.createComment({
             owner,
@@ -377,16 +404,32 @@ export const postRequestComments = async (issuesAndNextRequest: any[]) => {
               labels: ["bot:readyToSign", "state:Approved"],
             });
 
+            //metrics
+            res.metrics.params = {
+              name:  elem.issue.parsed.name,
+              clientAddress: elem.issue.address,
+              msigAddress:  elem.issue.lastRequest.notaryAddress,
+              amount: elem.amountToRequest.amount,
+            } as MetricsApiParams
+
+            res.metrics.call  = await callMetricsApi(
+              elem.issue.number,
+              EVENT_TYPE.SUBSEQUENT_DC_REQUEST,
+              res.metrics.params
+            );
+
 
           }
-          resolve({ res, body });
-          // }
+          logGeneral(`CREATE REQUEST COMMENT ${config.logPrefix} ${elem.issue.number}, posted new datacap request comment.`)
+
+          resolve({ res, body, issue_number: elem.issue.number });
         } catch (error) {
           reject(error);
         }
       }))
   )
 }
+
 
 export const retrieveLastTwoSigners = (
   issueComments: any,
@@ -395,13 +438,13 @@ export const retrieveLastTwoSigners = (
   try {
     let requestList: string[] = [];
 
-    let LENGTH: number = issueComments.comments.length;
+    let len: number = issueComments.length;
 
-    for (let i = LENGTH - 1; i >= 0; i--) {
+    for (let i = len - 1; i >= 0; i--) {
       if (requestList.length === 2) break;
 
       const parseRequest: ParseRequest = parseApprovedRequestWithSignerAddress(
-        issueComments.comments[i].body
+        issueComments[i].body
       );
 
       if (parseRequest.correct) {
@@ -417,7 +460,14 @@ export const retrieveLastTwoSigners = (
   }
 }
 
-export const postStatsComments = async (issuesAndNextRequest: any[], apiClients:any) => {
+
+/**
+ * 
+ * @param issuesAndNextRequest 
+ * @param apiClients 
+ * @returns the created stat comments
+ */
+export const postStatsComments = async (issuesAndNextRequest: any[], apiClients: any) => {
   try {
 
 
@@ -436,13 +486,16 @@ export const postStatsComments = async (issuesAndNextRequest: any[], apiClients:
 
         let client = clients.find((item: any) => item.address === elem.issue.address)
 
-        const addresses = ['addr1', 'addr2'] // get this frommm....???
-        const githubHandles = addresses.map(
-          (addr: any) =>
-            notaries.find(
-              (nt: any) => nt.ldn_config.signing_address === addr
-            )?.github_user[0]
+        // const addresses = ['addr1', 'addr2'] // need to make some function for that
+        const addresses = retrieveLastTwoSigners(
+          elem.issue.comments,
+          elem.issue.number
         )
+        const githubHandles = getGithubHandlesForAddress(addresses || ['addr1', 'addr2'], notaries)
+
+
+        const totalDcGrantedForClientSoFar = client ? getTotalDcGrantedSoFar(client) : 1000
+        const deltaTotalDcAndDatacapGranted = getDeltaDcAndDcGranted(elem, totalDcGrantedForClientSoFar)
 
         const content = {
           msigAddress: elem.issue.lastRequest.notaryAddress,
@@ -455,9 +508,9 @@ export const postStatsComments = async (issuesAndNextRequest: any[], apiClients:
           remainingDatacap: bytesToiB(elem.issue.datacap),
           actorAddress: elem.issue.idAddress,
           githubHandles: githubHandles ? githubHandles : ['not found'],
-          totalDcGrantedForClientSoFar: 'info.totalDcGrantedForClientSoFar', // info.totalDcGrantedForClientSoFar
+          totalDcGrantedForClientSoFar: client ? bytesToiB(totalDcGrantedForClientSoFar) : 'not found',
           totaldDcRequestedByClient: elem.issue.parsed.datacapRequested,
-          deltaTotalDcAndDatacapGranted: 'info.totalDcGrantedForClientSoFar', // info.deltaTotalDcAndDatacapGranted,
+          deltaTotalDcAndDatacapGranted: client ? bytesToiB(deltaTotalDcAndDatacapGranted) : 'not found', // info.deltaTotalDcAndDatacapGranted,
           rule: elem.amountToRequest.rule
         }
 
@@ -471,9 +524,9 @@ export const postStatsComments = async (issuesAndNextRequest: any[], apiClients:
             body,
           }),
           content
+        })
+        logGeneral(`CREATE STATS COMMENT ${config.logPrefix} ${elem.issue.number}, posted new stats comment.`)
 
-        }
-        )
 
       } catch (error) {
         reject(error)
@@ -486,15 +539,37 @@ export const postStatsComments = async (issuesAndNextRequest: any[], apiClients:
   }
 }
 
+// export const getTotalDcGrantedSoFar = (client: any) => {
+//   const set = new Set();
+//   return client.allowanceArray
+//     .filter((item: any) => {
+//       if (set.has(item.msgCID))
+//         return false;
+//       set.add(item.msgCID);
+//       return true;
+//     })
+//     .reduce((s: number, item: any) => s + parseInt(item.allowance), 0);
+// }
 
+// export const getDeltaDcAndDcGranted = (elem: any, totalDcGrantedForClientSoFar: any) => {
+//   return anyToBytes(elem.issue.parsed.datacapRequested) - totalDcGrantedForClientSoFar;
+// }
 
-async function getApiClients() {
-  return await axios({
-    method: "GET",
-    url: `${config.filpusApi}/getVerifiedClients`,
-    headers: {
-      "x-api-key": config.filplusApiKey,
-    },
-  });
-}
+// export const getGithubHandlesForAddress = (addresses: string[], notaries: any) => {
+//   return addresses.map(
+//     (addr: any) => notaries.find(
+//       (nt: any) => nt.ldn_config.signing_address === addr
+//     )?.github_user[0]
+//   );
+// }
+
+// export const getApiClients = async () => {
+//   return await axios({
+//     method: "GET",
+//     url: `${config.filpusApi}/getVerifiedClients`,
+//     headers: {
+//       "x-api-key": config.filplusApiKey,
+//     },
+//   });
+// }
 

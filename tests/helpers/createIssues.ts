@@ -52,7 +52,7 @@ export const createIssues = async () => {
         { encoding: 'utf8' },
     )
 
-    const testIssue3body_real_addr = fs.readFileSync( 
+    const testIssue3body_real_addr = fs.readFileSync(
         path.resolve(__dirname, '../samples/ldn_app_real_address.test.md'),
         { encoding: 'utf8' },
     )
@@ -77,12 +77,12 @@ export const createIssues = async () => {
         body: testIssue2body
     })
 
-    const testIssue3 = await octokit.issues.create({
-        owner: config.githubLDNOwner,
-        repo: config.githubLDNRepo,
-        title: `TEST clients topup edge case: t01011 (t1rbfyvybljzd5xcouqjx22juucdj3xbwtro2crwq)`,
-        body: testIssue3body_real_addr
-    })
+    // const testIssue3 = await octokit.issues.create({
+    //     owner: config.githubLDNOwner,
+    //     repo: config.githubLDNRepo,
+    //     title: `TEST clients topup edge case: t01011 (t1rbfyvybljzd5xcouqjx22juucdj3xbwtro2crwq)`,
+    //     body: testIssue3body_real_addr
+    // })
 
     const testIssues = [testIssue1, testIssue2]
 
@@ -111,12 +111,51 @@ export const createIssues = async () => {
         dcTrigger.push(comment)
     }
     await Promise.allSettled(dcTrigger)
+    await postProposeApproveComments(issueNumbs)
     await testTimeout
 
     const labelReset = resetLabel(issueNumbs)
     await Promise.allSettled(labelReset)
 
     return issueNumbs
+
+}
+
+
+export const postProposeApproveComments = (issueNumbs: any[]) => {
+    return Promise.allSettled(issueNumbs.map(
+        (issue_number: any) => new Promise<any>(async (resolve, reject) => {
+            try {
+                const proposeBody = fs.readFileSync(
+                    path.resolve(__dirname, '../samples/propose_comment.test.md'),
+                    { encoding: 'utf8' },
+                )
+
+                const propose = await octokit.issues.createComment({
+                    owner: config.githubLDNOwner,
+                    repo: config.githubLDNRepo,
+                    issue_number,
+                    body: proposeBody
+
+                })
+                const approveBody = fs.readFileSync(
+                    path.resolve(__dirname, '../samples/approve_comment.test.md'),
+                    { encoding: 'utf8' },
+                )
+
+                const approve = await octokit.issues.createComment({
+                    owner: config.githubLDNOwner,
+                    repo: config.githubLDNRepo,
+                    issue_number,
+                    body: approveBody
+
+                })
+                resolve({propose,approve})
+            } catch (error) {
+                reject(error)
+            }
+        })
+    ))
 
 }
 

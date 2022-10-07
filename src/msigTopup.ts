@@ -135,12 +135,10 @@ export const checkV3LastTwoWeeksAndReturnDatacapToBeRequested = async (baselineA
 
 
         if (allowanceAssignedToLdnV3InLast2Weeks.data.allowance > baselineAllowanceBytes) {
-            // console.log('RETURN allowanceAssignedToLdnV3InLast2Weeks.allowance', allowanceAssignedToLdnV3InLast2Weeks.data.allowance)
             logDebug(`${config.logPrefix} 0 Subsequent-Allocation-Bot - datacap spent in last 2 weeks is bigger than the baseline datacap amount. requesting the 2 weeks amount.`)
             return bytesToiB(allowanceAssignedToLdnV3InLast2Weeks.allowance)
         }
         logDebug(`${config.logPrefix} 0 Subsequent-Allocation-Bot - datacap spent in last 2 weeks is less than the baseline datacap amount. requesting the baseline amount (25PiB).`)
-        // console.log('RETURN baselineAllowanceBytes', baselineAllowanceBytes)
         return bytesToiB(baselineAllowanceBytes)
 
     } catch (error) {
@@ -184,7 +182,7 @@ export const exceptionMsigTopup = async () => {
                         issue_number: issueNumber,
                     });
 
-                    if (!checkLabel(issue.data)) {
+                    if (checkLabel(issue.data).skip) {
                         resolve(false)
                     }
 

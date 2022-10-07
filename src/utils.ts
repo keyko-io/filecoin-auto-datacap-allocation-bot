@@ -1,9 +1,14 @@
 import ByteConverter from '@wtfcode/byte-converter'
-import { logGeneral } from './logger/consoleLogger'
+import { logDebug, logError, logGeneral } from './logger/consoleLogger'
 import { config } from './config'
+import axios from 'axios';
+import { statsComment_v2 } from './comments';
+import { retrieveLastTwoSigners } from './clientTopup_v2';
+import OctokitInitializer from './initializers/OctokitInitializer';
 const byteConverter = new ByteConverter()
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
+const octokit = OctokitInitializer.getInstance()
 
 
 export const matchGroup = (regex, content) => {
@@ -62,6 +67,7 @@ enum LabelsEnum {
   TOTAL_DC_REACHED = "issue:TotalDcReached",
   STATUS_APPROVED = "status:Approved",
   STATUS_START_SIGN_ON_CHAIN = "status:StartSignOnchain",
+  STATUS_VERIFYING = "status:Verifying"
 }
 
 export const checkLabel = (issue: any) => {
@@ -101,6 +107,12 @@ export const checkLabel = (issue: any) => {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> V3 Msig started the RKH signature round.`);
     iss.skip = true
     iss.label = LabelsEnum.STATUS_APPROVED
+    return iss
+  }
+  if (issue.labels.find((item: any) => item.name === LabelsEnum.STATUS_VERIFYING) ) {
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> Issue is still in verifying phase.`);
+    iss.skip = true
+    iss.label = LabelsEnum.STATUS_VERIFYING
     return iss
   }
 
@@ -155,3 +167,123 @@ export const findClient = (apiClients: any, address: any) => {
   if (el) return el
   else return false
 }
+
+export const getTotalDcGrantedSoFar = (client: any) => {
+  const set = new Set();
+  return client.allowanceArray
+    .filter((item: any) => {
+      if (set.has(item.msgCID))
+        return false;
+      set.add(item.msgCID);
+      return true;
+    })
+    .reduce((s: number, item: any) => s + parseInt(item.allowance), 0);
+}
+
+export const getDeltaDcAndDcGranted = (elem: any, totalDcGrantedForClientSoFar: any) => {
+  return anyToBytes(elem.issue.parsed.datacapRequested) - totalDcGrantedForClientSoFar;
+}
+
+export const getGithubHandlesForAddress = (addresses: string[], notaries: any) => {
+  return addresses.map(
+    (addr: any) => notaries.find(
+      (nt: any) => nt.ldn_config.signing_address === addr
+    )?.github_user[0]
+  );
+}
+
+/**
+ * 
+ * @returns the clients from dmob api
+ */
+export const getApiClients = async () => {
+  return await axios({
+    method: "GET",
+    url: `${config.filpusApi}/getVerifiedClients`,
+    headers: {
+      "x-api-key": config.filplusApiKey,
+    },
+  });
+}
+
+export const calculateTotalDcGrantedSoFar = (issue: any) => {
+  const dc = issue.issue.requests.reduce((acc: any, el: any) => acc + anyToBytes(el.allocationDatacap), 0)
+  return dc
+}
+
+export const calculateAllocationToRequest = (
+  requestNumber: number,
+  totalDcGrantedForClientSoFar: number,
+  totaldDcRequestedByClient: number,
+  weeklyDcAllocationBytes: number,
+  issueNumber: any
+) => {
+  logDebug(`${config.logPrefix} ${issueNumber} weekly datacap requested by client: ${bytesToiB(weeklyDcAllocationBytes)} ${weeklyDcAllocationBytes}B`)
+
+  logDebug(`${config.logPrefix} ${issueNumber} total datacap requested by client: ${bytesToiB(totaldDcRequestedByClient)}, ${totaldDcRequestedByClient}B`)
+
+
+  let nextRequest = 0;
+  let rule = ""
+  let condition = true
+  switch (requestNumber) {
+    case 0: //1nd req (won't never happen here :) - 50%
+      condition = weeklyDcAllocationBytes / 2 <= totaldDcRequestedByClient * 0.05
+      nextRequest = condition ? weeklyDcAllocationBytes / 2 : totaldDcRequestedByClient * 0.05;
+      rule = condition ? `50% of weekly dc amount requested` : `5% of total dc amount requested`
+      break;
+    case 1: //2nd req - 100% of the amount in the issue
+      condition = weeklyDcAllocationBytes <= totaldDcRequestedByClient * 0.1
+      nextRequest = condition ? weeklyDcAllocationBytes : totaldDcRequestedByClient * 0.1;
+      rule = condition ? `100% of weekly dc amount requested` : `10% of total dc amount requested`
+      break;
+    case 2: //3rd req - 200% of the amount in the issue
+      condition = weeklyDcAllocationBytes * 2 <= totaldDcRequestedByClient * 0.2
+      nextRequest = condition ? weeklyDcAllocationBytes * 2 : totaldDcRequestedByClient * 0.2;
+      rule = condition ? `200% of weekly dc amount requested` : `20% of total dc amount requested`
+      break;
+    case 3: //4th req - 400% of the amount in the issue
+      condition = weeklyDcAllocationBytes * 4 <= totaldDcRequestedByClient * 0.4
+      nextRequest = condition ? weeklyDcAllocationBytes * 4 : totaldDcRequestedByClient * 0.4;
+      rule = condition ? `400% of weekly dc amount requested` : `40% of total dc amount requested`
+      break;
+
+    default:
+      //5th req on - 800% of the amount in the issue
+      condition = weeklyDcAllocationBytes * 8 <= totaldDcRequestedByClient * 0.8
+      nextRequest = condition ? weeklyDcAllocationBytes * 8 : totaldDcRequestedByClient * 0.8;
+      rule = condition ? `800% of weekly dc amount requested` : `80% of total dc amount requested`
+      break;
+  }
+
+
+  const sumTotalAmountWithNextRequest = Math.floor(nextRequest + totalDcGrantedForClientSoFar)
+  logDebug(`${config.logPrefix} ${issueNumber} sumTotalAmountWithNextRequest (sum next request + total datcap granted to client so far): ${bytesToiB(sumTotalAmountWithNextRequest)}`)
+
+  let retObj: any = {}
+  if (sumTotalAmountWithNextRequest > totaldDcRequestedByClient) {
+    logDebug(`${config.logPrefix} ${issueNumber} sumTotalAmountWithNextRequest is higher than total datacap requested by client (${totaldDcRequestedByClient}, requesting the difference of total dc requested - total datacap granted so far)`)
+    nextRequest = totaldDcRequestedByClient - totalDcGrantedForClientSoFar
+  }
+  if (nextRequest <= 0) {
+    logDebug(`${config.logPrefix} ${issueNumber} - seems that the client reached the total datacap request in this issue. This should be checked and closed`)
+    retObj = {
+      amount: 0,
+      rule: 'total dc reached',
+      totalDatacapReached: false
+    }
+    return retObj
+  }
+
+
+  logDebug(`${config.logPrefix} ${issueNumber} nextRequest ${bytesToiB(nextRequest)}`)
+  logDebug(`${config.logPrefix} ${issueNumber} allocation rule: ${rule}`)
+  retObj = {
+    amount: bytesToiB(Math.floor(nextRequest)),
+    rule,
+    totalDatacapReached: false
+  }
+
+  return retObj
+}
+

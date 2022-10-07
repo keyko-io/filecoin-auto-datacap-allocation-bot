@@ -6,7 +6,6 @@ import {
 } from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
 import axios from 'axios';
 
-const exceptions = config.exceptionJson
 
 jest.setTimeout(200000)
 
@@ -36,7 +35,7 @@ beforeAll(async () => {
       url: `${config.filpusApi}/getVerifiedClients`,
       headers: {
         "x-api-key": config.filplusApiKey,
-      },
+      }
     }) 
 
 
@@ -101,7 +100,6 @@ describe('test client topup', () => {
     })
     test('the stats comment is posted and is correct', async () => {
         postStatz = await postStatsComments(issuesAndNextRequest, apiClients)
-        console.log('postStatz',postStatz)
         for(let elem of postStatz){
             expect(elem.status).toBe('fulfilled')
             

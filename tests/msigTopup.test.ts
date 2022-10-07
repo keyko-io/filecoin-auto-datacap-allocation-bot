@@ -17,7 +17,6 @@ jest.setTimeout(20000)
 
 /**
  * @TODO test checkV3LastTwoWeeksAndReturnDatacapToBeRequested function
- * @TODO test that the bot is not posting the comment if the label request approved is present (for test multisig monitoring)
  */
 
 describe('test multisig monitoring', () => {
@@ -101,12 +100,14 @@ describe('test multisig monitoring', () => {
     test('bot is not posting the comment is the label \'status:Approved\' is there', async () => {
 
         const monitoring = await exceptionMsigTopup() as any[]
-
+        console.log('monitoring', monitoring)
+        
         const isFulfilled = monitoring.every((item: any) => item.status === 'fulfilled')
 
         const areCommentsPosted = monitoring.every((item: any) => !item.value)
 
         expect(isFulfilled).toBeTruthy()
+
         expect(areCommentsPosted).toBeTruthy()
 
 

@@ -20,6 +20,10 @@ const repo = config.githubLDNRepo;
 const api = ApiInitializer.getInstance()
 const octokit = OctokitInitializer.getInstance()
 
+/**
+ * 
+ * @deprecated  
+ */
 export const clientsTopup = async () => {
   try {
     console.log('ldn repo:',config.githubLDNRepo )
