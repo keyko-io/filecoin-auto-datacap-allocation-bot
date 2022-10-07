@@ -270,7 +270,7 @@ export const calculateAllocationToRequest = (
     retObj = {
       amount: 0,
       rule: 'total dc reached',
-      totalDatacapReached: false
+      totalDatacapReached: true
     }
     return retObj
   }

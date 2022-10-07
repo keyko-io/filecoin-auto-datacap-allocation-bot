@@ -23,7 +23,7 @@ const octokit = OctokitInitializer.getInstance()
 
 
 /***
- * @TODO testProduction 
+ * @TODO create different phases 
  */
 
 /**
@@ -40,28 +40,17 @@ export const clientsTopup_v2 = async () => {
 
     const nodeClientz = await getNodeClients()
 
-    //match issues in repo with same address.
-    // if a client has 0 dc, it is not retrieved by getNodeClients
-    // so I should find a way to include also issues with at least 1 allocation.... 
     const match = matchGithubAndNodeClients(issuez, nodeClientz, apiClients)
 
-    // find the history of allocation for each issue
-    // find the last request 
     const issuesAndCommentz = await matchIssuesAndComments(match)
 
-    // check if each issue deserve a new request
     const issuesAndMargin = checkPostNewRequest(issuesAndCommentz);
 
-
-    // calculate how much dc should be allocated
     const issuesAndNextRequest = matchIssuesAndNextRequest(issuesAndMargin)
 
-    //posts all the requests
     const postRequestz = (await postRequestComments(issuesAndNextRequest)).filter((i: any) => i.status === 'fulfilled').map((i: any) => i.value)
 
-    //should post stats comments
     const postStatz = await postStatsComments(issuesAndNextRequest, apiClients)
-
 
     logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot ended.`);
     logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot issues commented: ${postRequestz.length ? postRequestz.length : 0}`)
@@ -141,19 +130,16 @@ export const matchGithubAndNodeClients = (issues: any[], nodeClients: NodeClient
   let match = []
 
   for (let i of parsedIssues) {
-    for (let n of nodeClients) {
 
-      if (n.address === i.parsed.address || n.idAddress === i.parsed.address) {
-
-        match.push(
+    const n = nodeClients.find((n:any)=> n.address === i.parsed.address || n.idAddress === i.parsed.address)
+    if(n){
+      match.push(
           {
             ...i,
             ...n
           }
         )
-        // continue
-      }
-      else {
+    }else {
         //edge case
         logWarn(`${config.logPrefix} ${i.number} - It looks like the client has 0B datacap remaining.`)
         const dmobClient = findClient(apiClients, i.parsed.address)
@@ -166,9 +152,7 @@ export const matchGithubAndNodeClients = (issues: any[], nodeClients: NodeClient
               datacap: dmobClient.allowance
             })
         }
-
       }
-    }
   }
   return match
 
@@ -219,7 +203,6 @@ export const matchIssuesAndComments = async (match: any[]) => {
 export const matchIssuesAndNextRequest = (issues: any[]) => {
   const issuesAndNextRequest = []
   for (let elem of issues) {
-    console.log(elem)
     if (elem.postRequest) {
       const requestNumber = elem.issue.numberOfRequests
       const totalDcGrantedForClientSoFar = calculateTotalDcGrantedSoFar(elem)
@@ -370,6 +353,7 @@ export const postRequestComments = async (issuesAndNextRequest: any[]) => {
             });
             logGeneral(`${config.logPrefix} ${elem.issue.number}, posted close request comment.`)
             resolve({ res, issue_number: elem.issue.number })
+            return
           }
 
 
@@ -405,18 +389,18 @@ export const postRequestComments = async (issuesAndNextRequest: any[]) => {
             });
 
             //metrics
-            res.metrics.params = {
-              name:  elem.issue.parsed.name,
+            res.metricsParams = {
+              name: elem.issue.parsed.name,
               clientAddress: elem.issue.address,
-              msigAddress:  elem.issue.lastRequest.notaryAddress,
+              msigAddress: elem.issue.lastRequest.notaryAddress,
               amount: elem.amountToRequest.amount,
             } as MetricsApiParams
 
-            res.metrics.call  = await callMetricsApi(
+            res.metricsCall = await callMetricsApi(
               elem.issue.number,
               EVENT_TYPE.SUBSEQUENT_DC_REQUEST,
-              res.metrics.params
-            );
+              res.metricsParams
+            )
 
 
           }
@@ -539,37 +523,4 @@ export const postStatsComments = async (issuesAndNextRequest: any[], apiClients:
   }
 }
 
-// export const getTotalDcGrantedSoFar = (client: any) => {
-//   const set = new Set();
-//   return client.allowanceArray
-//     .filter((item: any) => {
-//       if (set.has(item.msgCID))
-//         return false;
-//       set.add(item.msgCID);
-//       return true;
-//     })
-//     .reduce((s: number, item: any) => s + parseInt(item.allowance), 0);
-// }
-
-// export const getDeltaDcAndDcGranted = (elem: any, totalDcGrantedForClientSoFar: any) => {
-//   return anyToBytes(elem.issue.parsed.datacapRequested) - totalDcGrantedForClientSoFar;
-// }
-
-// export const getGithubHandlesForAddress = (addresses: string[], notaries: any) => {
-//   return addresses.map(
-//     (addr: any) => notaries.find(
-//       (nt: any) => nt.ldn_config.signing_address === addr
-//     )?.github_user[0]
-//   );
-// }
-
-// export const getApiClients = async () => {
-//   return await axios({
-//     method: "GET",
-//     url: `${config.filpusApi}/getVerifiedClients`,
-//     headers: {
-//       "x-api-key": config.filplusApiKey,
-//     },
-//   });
-// }
 

@@ -45,7 +45,7 @@ export const msigTopup = async () => {
 
         // get datacap remaining and parse from b to tib
         // use getAllowanceForAddress
-        let dataCapRemainingBytes = 0
+        let dataCapRemainingBytes: number = 0
         if (config.networkType !== "test") {
             const v3MultisigAllowance = await axios({
                 method: "GET",
@@ -54,10 +54,10 @@ export const msigTopup = async () => {
                     "x-api-key": config.filplusApiKey,
                 },
             });
-            dataCapRemainingBytes = v3MultisigAllowance.data.allowance
+            dataCapRemainingBytes = v3MultisigAllowance.data.allowance as number
         }
         else {
-            dataCapRemainingBytes = await api.checkVerifier(address).datacap
+            dataCapRemainingBytes = await api.checkVerifier(address).datacap as number
         }
 
         // calculate margin ( dc remaining / 25PiB) --> remember to convert to bytes first
@@ -82,7 +82,7 @@ export const msigTopup = async () => {
                 repo: config.githubNotaryRepo,
                 issue_number: issueNumber,
                 body
-            });
+            })
             await octokit.issues.addLabels({
                 owner: config.githubLDNOwner,
                 repo: config.githubNotaryRepo,
@@ -123,6 +123,9 @@ export const msigTopup = async () => {
 }
 
 
+/**
+ * 
+ */
 export const checkV3LastTwoWeeksAndReturnDatacapToBeRequested = async (baselineAllowanceBytes: number) => {
     try {
         const allowanceAssignedToLdnV3InLast2Weeks: any = await axios({
@@ -133,10 +136,12 @@ export const checkV3LastTwoWeeksAndReturnDatacapToBeRequested = async (baselineA
             },
         });
 
+        const apiAllowance =  allowanceAssignedToLdnV3InLast2Weeks.data.allowance as number
 
-        if (allowanceAssignedToLdnV3InLast2Weeks.data.allowance > baselineAllowanceBytes) {
+
+        if (apiAllowance > baselineAllowanceBytes) {
             logDebug(`${config.logPrefix} 0 Subsequent-Allocation-Bot - datacap spent in last 2 weeks is bigger than the baseline datacap amount. requesting the 2 weeks amount.`)
-            return bytesToiB(allowanceAssignedToLdnV3InLast2Weeks.allowance)
+            return bytesToiB(apiAllowance)
         }
         logDebug(`${config.logPrefix} 0 Subsequent-Allocation-Bot - datacap spent in last 2 weeks is less than the baseline datacap amount. requesting the baseline amount (25PiB).`)
         return bytesToiB(baselineAllowanceBytes)
@@ -184,6 +189,7 @@ export const exceptionMsigTopup = async () => {
 
                     if (checkLabel(issue.data).skip) {
                         resolve(false)
+                        return
                     }
 
                     // get datacap remaining and parse from b to tib
@@ -231,7 +237,7 @@ export const exceptionMsigTopup = async () => {
                         });
 
                         logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot posted dc request for v3 specific multisig triggered. Address ${address}, issue #${issueNumber}`);
-                        
+
                         resolve({
                             createdRequestComment,
                             dataCapRemainingBytes

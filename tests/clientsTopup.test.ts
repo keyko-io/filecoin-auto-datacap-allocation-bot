@@ -90,7 +90,6 @@ describe('test client topup', () => {
     })
     test('the request comment is posted and is correct', async () => {
         postRequestz = await postRequestComments(issuesAndNextRequest)
-        // console.log('postRequestz',postRequestz)
          
         for(let elem of postRequestz){
             expect(elem.status).toBe('fulfilled')
