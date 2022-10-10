@@ -81,8 +81,9 @@ export const getIssuez = async () => {
 
     //need to filter issues by label 
     //need to see what issue already had an allocation request
+    logGeneral(`${config.logPrefix} 0 Issues fetched from github: ${issuez.length}`)
     issuez = issuez.filter((issue: any) => !checkLabel(issue).skip);
-    logGeneral(`${config.logPrefix} 0 Issues fetched: ${issuez.length}`)
+    logGeneral(`${config.logPrefix} 0 Issues to be checked: ${issuez.length}`)
     return issuez;
   } catch (error) {
     console.log(error)
