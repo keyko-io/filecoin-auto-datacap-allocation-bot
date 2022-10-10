@@ -15,6 +15,22 @@ export const newAllocationRequestComment = (
 #### DataCap allocation requested\r\n> ${lastDatacapAllocated}`
 }
 
+export const newAllocationRequestComment_V2 = (
+    address: string,
+    amountToRequest: string,
+    msigAddress: string,
+    requestNumber: number
+    //other data
+): string => {
+    // #### Remaining dataCap\r> ${dataCapRemaining}\r
+    return `
+## DataCap Allocation requested\r\n
+### Request number ${requestNumber}
+#### Multisig Notary address\r\n> ${msigAddress}\r\n
+#### Client address\r\n> ${address}\r\n
+#### DataCap allocation requested\r\n> ${amountToRequest}`
+}
+
 export const statsComment = (
     msigAddress: string,
     address: string,
@@ -28,8 +44,8 @@ export const statsComment = (
     githubHandles: string[],
     totalDcGrantedForClientSoFar: string,
     totaldDcRequestedByClient: string,
-    deltaTotalDcAndDatacapGranted:string,
-    rule:string
+    deltaTotalDcAndDatacapGranted: string,
+    rule: string
 ): string => {
     return `\r## Stats & Info for DataCap Allocation
     \r#### Multisig Notary address\r\n> ${msigAddress}
@@ -43,6 +59,37 @@ export const statsComment = (
 | Number of deals  | Number of storage providers | Previous DC Allocated  |  Top provider | Remaining DC
 |---|---|---|---|---|
 | ${nDeals}  | ${nStorageProviders}  |  ${previousDcAllocated} | ${topProvider}  | ${remainingDatacap}
+    `
+}
+export const statsComment_v2 = (comment: {
+    msigAddress: string,
+    address: string,
+    topProvider: string,
+    nDeals: string,
+    previousDcAllocated: string,
+    dcAllocationRequested: string,
+    nStorageProviders: string,
+    remainingDatacap: string,
+    actorAddress: string,
+    githubHandles: string[],
+    totalDcGrantedForClientSoFar: string,
+    totaldDcRequestedByClient: string,
+    deltaTotalDcAndDatacapGranted: string,
+    rule: string
+}
+): string => {
+    return `\r## Stats & Info for DataCap Allocation
+    \r#### Multisig Notary address\r\n> ${comment.msigAddress}
+    \r#### Client address\r\n> ${comment.address} \r\n
+    \r#### Last two approvers\r\n> **${comment.githubHandles[0] ? comment.githubHandles[0] : 'not found'}** & **${comment.githubHandles[1] ? comment.githubHandles[1] : 'not found'}** \r\n
+    \r#### Rule to calculate the allocation request amount\n> ${comment.rule}
+    \r#### DataCap allocation requested\n> ${comment.dcAllocationRequested}
+    \r#### Total DataCap granted for client so far\n> ${comment.totalDcGrantedForClientSoFar}
+    \r#### Datacap to be granted to reach the total amount requested by the client (${comment.totaldDcRequestedByClient})\n> ${comment.deltaTotalDcAndDatacapGranted}
+    \r#### **[Stats](https://filplus.d.interplanetary.one/clients?filter=${comment.actorAddress} "Go to stats")**
+| Number of deals  | Number of storage providers | Previous DC Allocated  |  Top provider | Remaining DC
+|---|---|---|---|---|
+| ${comment.nDeals}  | ${comment.nStorageProviders}  |  ${comment.previousDcAllocated} | ${comment.topProvider}  | ${comment.remainingDatacap}
     `
 }
 
