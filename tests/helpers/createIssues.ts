@@ -42,6 +42,11 @@ export const createIssues = async () => {
     )
 
     //create new issues
+    const e_fil_issue_body = fs.readFileSync(
+        path.resolve(__dirname, '../samples/e_fil_sample.test.md'),
+        { encoding: 'utf8' },
+    )
+
     const testIssue1body = fs.readFileSync(
         path.resolve(__dirname, '../samples/ldn_app_t01019.test.md'),
         { encoding: 'utf8' },
@@ -61,6 +66,14 @@ export const createIssues = async () => {
         { encoding: 'utf8' },
     )
 
+
+    const e_fil_issue = await octokit.issues.create({
+        owner: config.githubLDNOwner,
+        repo: config.githubLDNRepo,
+        title: `TEST clients topup client: t01081 (t1y6grz7kkjs5wyvg4mp5jqjl3unqt7t5ktqlrf2q)`,
+        body: e_fil_issue_body
+
+    })
 
     const testIssue1 = await octokit.issues.create({
         owner: config.githubLDNOwner,
@@ -84,7 +97,7 @@ export const createIssues = async () => {
     //     body: testIssue3body_real_addr
     // })
 
-    const testIssues = [testIssue1, testIssue2]
+    const testIssues = [e_fil_issue, testIssue1, testIssue2]
 
 
     const issueNumbs = testIssues.map((a: any) => a.data.number)
@@ -150,7 +163,7 @@ export const postProposeApproveComments = (issueNumbs: any[]) => {
                     body: approveBody
 
                 })
-                resolve({propose,approve})
+                resolve({ propose, approve })
             } catch (error) {
                 reject(error)
             }
