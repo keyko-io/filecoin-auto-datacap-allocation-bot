@@ -11,6 +11,11 @@ const repo = config.githubLDNRepo;
 const octokit = OctokitInitializer.getInstance()
 
 
+export const parseRandomNotaryHandle = (commentBody: string): string[] => {
+  const pattern = /@\w+/g;
+  return commentBody.match(pattern).map(item => item.split("@")[1])
+}
+
 export const matchGroup = (regex, content) => {
   let m
   if ((m = regex.exec(content)) !== null) {
@@ -109,7 +114,7 @@ export const checkLabel = (issue: any) => {
     iss.label = LabelsEnum.STATUS_APPROVED
     return iss
   }
-  if (issue.labels.find((item: any) => item.name === LabelsEnum.STATUS_VERIFYING) ) {
+  if (issue.labels.find((item: any) => item.name === LabelsEnum.STATUS_VERIFYING)) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> Issue is still in verifying phase.`);
     iss.skip = true
     iss.label = LabelsEnum.STATUS_VERIFYING
