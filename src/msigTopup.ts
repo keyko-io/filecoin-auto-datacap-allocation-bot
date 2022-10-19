@@ -37,7 +37,7 @@ export const msigTopup = async () => {
             issue_number: issueNumber,
         });
 
-        if (!checkLabel(issue.data)) {
+        if (checkLabel(issue.data).skip) {
             return false
         }
 
