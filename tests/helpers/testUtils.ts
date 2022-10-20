@@ -1,1 +1,1 @@
-export const testTimeout = new Promise((r) => setTimeout(r, 18000));
+export const testTimeout = new Promise((r) => setTimeout(r, 30000));

@@ -50,21 +50,23 @@ describe('test client topup', () => {
         // resetLabel([907,906])
         //if this fails, probably the node is offline... need to wait
         issuez = await getIssuez()
-        // console.log('issuez',issuez)
+        console.log('issuez.length',issuez.length)
 
         expect(issuez.length).toBeGreaterThan(0)
     })
     test('nodeClientz is getting clients from node', async () => {
         nodeClientz = await getNodeClients()
-        // console.log('nodeClientz',nodeClientz)
+        console.log('nodeClientz',nodeClientz)
         expect(nodeClientz.length).toBeGreaterThan(0)
     })
     test('matchGithubAndNodeClients is pairing issuez and nodeCLientz', async () => {
         match = matchGithubAndNodeClients(issuez, nodeClientz, apiClients)
+        console.log('match',match)
         expect(match.length).toBeGreaterThan(0)
     })
     test('issuesAndCommentz is pairing issuez and comments for each issue', async () => {
         issuesAndCommentz = await matchIssuesAndComments(match)
+        console.log('issuesAndCommentz',issuesAndCommentz)
         expect(issuesAndCommentz.length).toBeGreaterThan(0)
         for (let iss of issuesAndCommentz) {
             const issueNumber = iss.issue.number
@@ -76,15 +78,15 @@ describe('test client topup', () => {
         }
     })
     test('issuesAndMargin is calculating correctly the margin', async () => {
-        console.log(issuesAndCommentz)
         issuesAndMargin = checkPostNewRequest(issuesAndCommentz)
+        console.log('issuesAndMargin',issuesAndMargin)
         expect(issuesAndMargin.length).toBeTruthy()
 
     })
     test('matchIssuesAndNextRequest is correctly preparing the nextRequests', async () => {
         issuesAndNextRequest = matchIssuesAndNextRequest(issuesAndMargin)
-        // console.log('issuesAndNextRequest', issuesAndNextRequest)
-        expect(issuesAndNextRequest.length).toBe(1)
+        console.log('issuesAndNextRequest', issuesAndNextRequest)
+        expect(issuesAndNextRequest.length).toBeGreaterThan(1)
         expect(issuesAndNextRequest[0].amountToRequest.amount).toBe('100TiB')
 
     })
@@ -106,5 +108,10 @@ describe('test client topup', () => {
                 expect(v).not.toEqual('undefined')
             }
         }
+    })
+    test('check that issue for efil has random notary comment', async () => {
+        //TODO implement
+        // 1 get the issue for e-fil
+        // 2 make sure that there is a 'random-notary-comment' for each request 
     })
 })

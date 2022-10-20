@@ -12,6 +12,7 @@ import { testTimeout } from "./testUtils";
  * t01021: legacy msig notary  
  * t01022: exception msig notary 
  * t01011 (t1rbfyvybljzd5xcouqjx22juucdj3xbwtro2crwq): client with 80TiB 
+ * t01007 (t17wm5ihdhdknvyqr2cfkk7s3cupetjyeforprkay): client for E-fil case
  */
 
 const octokit = OctokitInitializer.getInstance()
@@ -51,6 +52,10 @@ export const createIssues = async () => {
         path.resolve(__dirname, '../samples/ldn_app_t01011.test.md'),
         { encoding: 'utf8' },
     )
+    const testIssueEfilbody = fs.readFileSync(
+        path.resolve(__dirname, '../samples/ldn_app_t01007.test.md'),
+        { encoding: 'utf8' },
+    )
 
     const testIssue3body_real_addr = fs.readFileSync(
         path.resolve(__dirname, '../samples/ldn_app_real_address.test.md'),
@@ -77,6 +82,13 @@ export const createIssues = async () => {
         body: testIssue2body
     })
 
+    const testIssue3 = await octokit.issues.create({
+        owner: config.githubLDNOwner,
+        repo: config.githubLDNRepo,
+        title: `TEST clients topup client: t01007 (t1y4bukjsfntcixzlcz7ydliexhtuvk3dwwejndtq)`,
+        body: testIssueEfilbody
+    })
+
     // const testIssue3 = await octokit.issues.create({
     //     owner: config.githubLDNOwner,
     //     repo: config.githubLDNRepo,
@@ -84,7 +96,7 @@ export const createIssues = async () => {
     //     body: testIssue3body_real_addr
     // })
 
-    const testIssues = [testIssue1, testIssue2]
+    const testIssues = [testIssue1, testIssue2, testIssue3]
 
 
     const issueNumbs = testIssues.map((a: any) => a.data.number)
