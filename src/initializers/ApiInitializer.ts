@@ -22,15 +22,19 @@ export default class ApiInitializer {
 
     private constructor() { }
 
-    public static getInstance(): VerifyAPI {
+    public static getInstance(
+        node_url: any = config.nodeUrl,
+        lotus_node_token: any = config.lotus_node_token,
+        network_type: any = config.networkType
+    ): VerifyAPI {
         if (!this.api) {
-        this.api = new VerifyAPI( // eslint-disable-line
-            VerifyAPI.standAloneProvider(
-                config.nodeUrl,
-                null,
-                config.networkType 
-            )
-        );
+            this.api = new VerifyAPI( // eslint-disable-line
+                VerifyAPI.standAloneProvider(
+                    node_url,
+                    { token: lotus_node_token },
+                    network_type
+                )
+            );
         }
         return this.api
     }
