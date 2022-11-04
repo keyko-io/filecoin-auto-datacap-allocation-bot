@@ -132,28 +132,28 @@ export const matchGithubAndNodeClients = (issues: any[], nodeClients: NodeClient
 
   for (let i of parsedIssues) {
 
-    const n = nodeClients.find((n:any)=> n.address === i.parsed.address || n.idAddress === i.parsed.address)
-    if(n){
+    const n = nodeClients.find((n: any) => n.address === i.parsed.address || n.idAddress === i.parsed.address)
+    if (n) {
       match.push(
+        {
+          ...i,
+          ...n
+        }
+      )
+    } else {
+      //edge case
+      logWarn(`${config.logPrefix} ${i.number} - It looks like the client has 0B datacap remaining.`)
+      const dmobClient = findClient(apiClients, i.parsed.address)
+      if (dmobClient) {
+        match.push(
           {
             ...i,
-            ...n
-          }
-        )
-    }else {
-        //edge case
-        logWarn(`${config.logPrefix} ${i.number} - It looks like the client has 0B datacap remaining.`)
-        const dmobClient = findClient(apiClients, i.parsed.address)
-        if (dmobClient) {
-          match.push(
-            {
-              ...i,
-              idAddress: dmobClient.addressId,
-              address: dmobClient.address,
-              datacap: dmobClient.allowance
-            })
-        }
+            idAddress: dmobClient.addressId,
+            address: dmobClient.address,
+            datacap: dmobClient.allowance
+          })
       }
+    }
   }
   return match
 
@@ -307,19 +307,21 @@ export const checkPostNewRequest = (issuesAndComments: any[]) => {
   const postRequest = []
   for (let elem of issuesAndComments) {
     elem.postRequest = false
-    let margin = 0
-    const last = anyToBytes(elem.issue.lastRequest.allocationDatacap)
-    const remaining = parseInt(elem.issue.datacap)
-    if (remaining && last)
-      margin = remaining / last
+    if (elem.issue.lastRequest) {
+      let margin = 0
+      const last = anyToBytes(elem.issue.lastRequest.allocationDatacap)
+      const remaining = parseInt(elem.issue.datacap)
+      if (remaining && last)
+        margin = remaining / last
 
-    if (margin <= 0.25)
-      elem.postRequest = true
+      if (margin <= 0.25)
+        elem.postRequest = true
 
-    elem.margin = margin;
-    logGeneral(`${config.logPrefix} ${elem.issue.number} datacap remaining / datacp allocated: ${(margin * 100).toFixed(2)} %`)
+      elem.margin = margin;
+      logGeneral(`${config.logPrefix} ${elem.issue.number} datacap remaining / datacp allocated: ${(margin * 100).toFixed(2)} %`)
 
-    postRequest.push(elem)
+      postRequest.push(elem)
+    }
   }
   return postRequest
 }
