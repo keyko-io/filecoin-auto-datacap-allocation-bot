@@ -1,3 +1,5 @@
+import { v4 as uuidv4 } from 'uuid';
+
 export const newAllocationRequestComment = (
     address: string,
     lastDatacapAllocated: string,
@@ -28,7 +30,8 @@ export const newAllocationRequestComment_V2 = (
 ### Request number ${requestNumber}
 #### Multisig Notary address\r\n> ${msigAddress}\r\n
 #### Client address\r\n> ${address}\r\n
-#### DataCap allocation requested\r\n> ${amountToRequest}`
+#### DataCap allocation requested\r\n> ${amountToRequest}\r\n
+#### Id\r\n> ${uuidv4()}`
 }
 
 export const statsComment = (
