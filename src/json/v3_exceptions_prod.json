@@ -109,7 +109,7 @@
     },
     {
         "identifier":"E-fil",
-        "notary_msig":"f01924196",
+        "notary_msig":"f01940930",
 	    "notary_msig_datacap": "3.1PiB",
 	    "notary_msig_issue_number" : "615"
     }
