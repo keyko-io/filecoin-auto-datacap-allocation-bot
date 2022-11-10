@@ -1,9 +1,7 @@
 import ByteConverter from '@wtfcode/byte-converter'
-import { logDebug, logError, logGeneral } from './logger/consoleLogger'
+import { logDebug, logGeneral } from './logger/consoleLogger'
 import { config } from './config'
 import axios from 'axios';
-import { statsComment_v2 } from './comments';
-import { retrieveLastTwoSigners } from './clientTopup_v2';
 import OctokitInitializer from './initializers/OctokitInitializer';
 const byteConverter = new ByteConverter()
 const owner = config.githubLDNOwner;
