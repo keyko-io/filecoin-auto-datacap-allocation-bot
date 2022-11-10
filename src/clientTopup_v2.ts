@@ -6,7 +6,6 @@ import {
   parseApprovedRequestWithSignerAddress,
   parseIssue,
 } from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
-import axios from "axios";
 import { EVENT_TYPE, MetricsApiParams } from "./Metrics";
 import { logGeneral, logWarn, logDebug, logError } from './logger/consoleLogger'
 import { checkLabel } from "./utils";
