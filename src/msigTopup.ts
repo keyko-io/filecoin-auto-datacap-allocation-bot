@@ -233,7 +233,7 @@ export const exceptionMsigTopup = async () => {
                             owner: config.githubLDNOwner,
                             repo: config.githubNotaryRepo,
                             issue_number: issueNumber,
-                            labels: ["status:Approved"],
+                            labels: ["status:Approved", "status:dcRequestPosted"],
                         });
 
                         logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot posted dc request for v3 specific multisig triggered. Address ${address}, issue #${issueNumber}`);
