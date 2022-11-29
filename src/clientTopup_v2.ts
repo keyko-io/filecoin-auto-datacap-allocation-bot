@@ -13,6 +13,7 @@ import { checkLabel } from "./utils";
 import { NodeClient, ParseRequest } from "./types";
 import OctokitInitializer from "./initializers/OctokitInitializer";
 import ApiInitializer from "./initializers/ApiInitializer";
+import { createHealthCheckComment } from "./createHealthCheck";
 const { callMetricsApi, } = require("@keyko-io/filecoin-verifier-tools/metrics/metrics");
 
 const owner = config.githubLDNOwner;
@@ -51,6 +52,8 @@ export const clientsTopup_v2 = async () => {
     const postRequestz = (await postRequestComments(issuesAndNextRequest)).filter((i: any) => i.status === 'fulfilled').map((i: any) => i.value)
 
     const postStatz = await postStatsComments(issuesAndNextRequest, apiClients)
+
+    await createHealthCheckComment();
 
     logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot ended.`);
     logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot issues commented: ${postRequestz.length ? postRequestz.length : 0}`)
@@ -132,28 +135,28 @@ export const matchGithubAndNodeClients = (issues: any[], nodeClients: NodeClient
 
   for (let i of parsedIssues) {
 
-    const n = nodeClients.find((n:any)=> n.address === i.parsed.address || n.idAddress === i.parsed.address)
-    if(n){
+    const n = nodeClients.find((n: any) => n.address === i.parsed.address || n.idAddress === i.parsed.address)
+    if (n) {
       match.push(
+        {
+          ...i,
+          ...n
+        }
+      )
+    } else {
+      //edge case
+      logWarn(`${config.logPrefix} ${i.number} - It looks like the client has 0B datacap remaining.`)
+      const dmobClient = findClient(apiClients, i.parsed.address)
+      if (dmobClient) {
+        match.push(
           {
             ...i,
-            ...n
-          }
-        )
-    }else {
-        //edge case
-        logWarn(`${config.logPrefix} ${i.number} - It looks like the client has 0B datacap remaining.`)
-        const dmobClient = findClient(apiClients, i.parsed.address)
-        if (dmobClient) {
-          match.push(
-            {
-              ...i,
-              idAddress: dmobClient.addressId,
-              address: dmobClient.address,
-              datacap: dmobClient.allowance
-            })
-        }
+            idAddress: dmobClient.addressId,
+            address: dmobClient.address,
+            datacap: dmobClient.allowance
+          })
       }
+    }
   }
   return match
 
