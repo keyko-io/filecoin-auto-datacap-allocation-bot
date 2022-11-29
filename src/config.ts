@@ -1,4 +1,5 @@
-require('dotenv').config({ path: `.env.${process.env.NODE_ENV}` })
+import dotenv from "dotenv"
+dotenv.config({ path: `.env.${process.env.NODE_ENV}` })
 import v3_exception_test from './json/v3_exceptions_test.json'
 import v3_exception_prod from './json/v3_exceptions_prod.json'
 
