@@ -1,9 +1,7 @@
 import ByteConverter from '@wtfcode/byte-converter'
-import { logDebug, logError, logGeneral } from './logger/consoleLogger'
+import { logDebug, logGeneral } from './logger/consoleLogger'
 import { config } from './config'
 import axios from 'axios';
-import { statsComment_v2 } from './comments';
-import { retrieveLastTwoSigners } from './clientTopup_v2';
 import OctokitInitializer from './initializers/OctokitInitializer';
 const byteConverter = new ByteConverter()
 const owner = config.githubLDNOwner;
@@ -67,7 +65,8 @@ enum LabelsEnum {
   TOTAL_DC_REACHED = "issue:TotalDcReached",
   STATUS_APPROVED = "status:Approved",
   STATUS_START_SIGN_ON_CHAIN = "status:StartSignOnchain",
-  STATUS_VERIFYING = "status:Verifying"
+  STATUS_VERIFYING = "status:Verifying",
+  STATUS_DC_REQUEST_POSTED = "status:dcRequestPosted"
 }
 
 export const checkLabel = (issue: any) => {
@@ -103,7 +102,7 @@ export const checkLabel = (issue: any) => {
     iss.label = LabelsEnum.TOTAL_DC_REACHED
     return iss
   }
-  if (issue.labels.find((item: any) => item.name === LabelsEnum.STATUS_APPROVED) || issue.labels.find((item: any) => item.name === LabelsEnum.STATUS_START_SIGN_ON_CHAIN)) {
+  if (issue.labels.find((item: any) => item.name === LabelsEnum.STATUS_DC_REQUEST_POSTED) || issue.labels.find((item: any) => item.name === LabelsEnum.STATUS_START_SIGN_ON_CHAIN)) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> V3 Msig started the RKH signature round.`);
     iss.skip = true
     iss.label = LabelsEnum.STATUS_APPROVED

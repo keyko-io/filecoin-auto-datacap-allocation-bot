@@ -9,6 +9,7 @@
 import OctokitInitializer from '../src/initializers/OctokitInitializer'
 import { config } from "../src/config";
 import { msigTopup, exceptionMsigTopup } from '../src/msigTopup'
+import { anyToBytes } from '../src/utils';
 const exceptions = config.exceptionJson
 
 
@@ -20,6 +21,26 @@ jest.setTimeout(20000)
  */
 
 describe('test multisig monitoring', () => {
+
+
+    test('testing xception json imported from deps/filecoin-content', () => {
+        exceptions.map((exception: any) => {
+            console.log('exception', exception)
+            const address = exception.notary_msig
+            const dcAllowance = exception.notary_msig_datacap
+            const dcAllowanceBytes = anyToBytes(exception.notary_msig_datacap)
+            const marginPercentage = config.v3MarginComparisonPercentage
+            const issueNumber = parseInt(exception.notary_msig_issue_number)
+
+            expect(address).toBeTruthy()
+            expect(dcAllowance).toBeTruthy()
+            expect(dcAllowanceBytes).toBeTruthy()
+            expect(marginPercentage).toBeTruthy()
+            expect(issueNumber).toBeTruthy()
+        })
+    })
+
+
     const octokit = OctokitInitializer.getInstance()
     test('v3 legacy multisig github issue should be updated and labels are correct', async () => {
 
@@ -101,7 +122,7 @@ describe('test multisig monitoring', () => {
 
         const monitoring = await exceptionMsigTopup() as any[]
         console.log('monitoring', monitoring)
-        
+
         const isFulfilled = monitoring.every((item: any) => item.status === 'fulfilled')
 
         const areCommentsPosted = monitoring.every((item: any) => !item.value)

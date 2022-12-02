@@ -12,8 +12,8 @@
     "eslint-fix": "eslint 'src/**' --fix",
     "prod-start": "NODE_ENV=prod npm run build && npm start",
     "dev-start": "NODE_ENV=test npm run build && npm start",
-    "start": "NODE_ENV=prod node dist/index.js",
-    "update-deps": "git submodule init && git submodule update --remote deps/filecoin-verifier-tools",
+    "start": "NODE_ENV=prod npm run build && node dist/index.js",
+    "update-deps": "git submodule init && git submodule update --remote --recursive",
     "repo-checker": "npm run build && node dist/spreadsheet-filler/repo-checker.js",
     "scrape-github": "npm run build && node dist/scrape-github.js"
   },
@@ -21,6 +21,7 @@
   "license": "ISC",
   "dependencies": {
     "@keyko-io/filecoin-verifier-tools": "file:deps/filecoin-verifier-tools",
+    "@keyko-io/filecoin-content": "file:deps/filecoin-content",
     "@octokit/auth-app": "^3.6.0",
     "@octokit/core": "^3.5.1",
     "@octokit/rest": "^18.9.1",

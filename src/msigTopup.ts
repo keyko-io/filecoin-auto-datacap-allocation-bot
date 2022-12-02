@@ -37,7 +37,7 @@ export const msigTopup = async () => {
             issue_number: issueNumber,
         });
 
-        if (!checkLabel(issue.data)) {
+        if (checkLabel(issue.data).skip) {
             return false
         }
 
@@ -87,7 +87,7 @@ export const msigTopup = async () => {
                 owner: config.githubLDNOwner,
                 repo: config.githubNotaryRepo,
                 issue_number: issueNumber,
-                labels: ["status:Approved"],
+                labels: ["status:Approved", "status:dcRequestPosted"],
             });
 
 
@@ -111,7 +111,7 @@ export const msigTopup = async () => {
                 });
             }
 
-            logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot dc request for v3 msig triggered.`);
+            logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot dc request for v3 msig triggered. issue #557`);
             return createAllocationComment
         } else {
             logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot dc request for v3 msig not triggered. DataCap remaining is: ${bytesToiB(dataCapRemainingBytes)}.`);
@@ -233,7 +233,7 @@ export const exceptionMsigTopup = async () => {
                             owner: config.githubLDNOwner,
                             repo: config.githubNotaryRepo,
                             issue_number: issueNumber,
-                            labels: ["status:Approved"],
+                            labels: ["status:Approved", "status:dcRequestPosted"],
                         });
 
                         logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot posted dc request for v3 specific multisig triggered. Address ${address}, issue #${issueNumber}`);

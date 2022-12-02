@@ -6,7 +6,6 @@ import {
   parseApprovedRequestWithSignerAddress,
   parseIssue,
 } from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
-import axios from "axios";
 import { EVENT_TYPE, MetricsApiParams } from "./Metrics";
 import { logGeneral, logWarn, logDebug, logError } from './logger/consoleLogger'
 import { checkLabel } from "./utils";
@@ -312,19 +311,21 @@ export const checkPostNewRequest = (issuesAndComments: any[]) => {
   const postRequest = []
   for (let elem of issuesAndComments) {
     elem.postRequest = false
-    let margin = 0
-    const last = anyToBytes(elem.issue.lastRequest.allocationDatacap)
-    const remaining = parseInt(elem.issue.datacap)
-    if (remaining && last)
-      margin = remaining / last
+    if (elem.issue.lastRequest) {
+      let margin = 0
+      const last = anyToBytes(elem.issue.lastRequest.allocationDatacap)
+      const remaining = parseInt(elem.issue.datacap)
+      if (remaining && last)
+        margin = remaining / last
 
-    if (margin <= 0.25)
-      elem.postRequest = true
+      if (margin <= 0.25)
+        elem.postRequest = true
 
-    elem.margin = margin;
-    logGeneral(`${config.logPrefix} ${elem.issue.number} datacap remaining / datacp allocated: ${(margin * 100).toFixed(2)} %`)
+      elem.margin = margin;
+      logGeneral(`${config.logPrefix} ${elem.issue.number} datacap remaining / datacp allocated: ${(margin * 100).toFixed(2)} %`)
 
-    postRequest.push(elem)
+      postRequest.push(elem)
+    }
   }
   return postRequest
 }
