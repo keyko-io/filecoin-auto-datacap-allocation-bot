@@ -1,7 +1,7 @@
-require('dotenv').config({ path: process.env.NODE_ENV == 'test'? `.env.test`: '.env.prod' })
-
-import v3_exceptions_test from '@keyko-io/filecoin-content/json/test/v3_exceptions_test.json' 
-import v3_exception_prod from '@keyko-io/filecoin-content/json/prod/v3_exceptions_prod.json' 
+import dotenv from "dotenv"
+dotenv.config({ path: `.env.${process.env.NODE_ENV}` })
+import v3_exception_test from './json/v3_exceptions_test.json'
+import v3_exception_prod from './json/v3_exceptions_prod.json'
 
 export const config = {
     githubToken: process.env.GITHUB_TOKEN,

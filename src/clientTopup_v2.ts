@@ -12,6 +12,7 @@ import { checkLabel } from "./utils";
 import { NodeClient, ParseRequest } from "./types";
 import OctokitInitializer from "./initializers/OctokitInitializer";
 import ApiInitializer from "./initializers/ApiInitializer";
+import { createHealthCheckComment } from "./createHealthCheck";
 const { callMetricsApi, } = require("@keyko-io/filecoin-verifier-tools/metrics/metrics");
 
 const owner = config.githubLDNOwner;
@@ -51,8 +52,12 @@ export const clientsTopup_v2 = async () => {
 
     const postStatz = await postStatsComments(issuesAndNextRequest, apiClients)
 
+    const issueCommented = postRequestz.length ? postRequestz.length : 0
+
+    await createHealthCheckComment(issueCommented);
+
     logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot ended.`);
-    logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot issues commented: ${postRequestz.length ? postRequestz.length : 0}`)
+    logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot issues commented: ${issueCommented}`)
     if (postRequestz.length)
       logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot - issues numbers: ${postRequestz.map((i: any) => i.issue_number)}`);
 
