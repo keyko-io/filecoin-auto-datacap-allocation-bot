@@ -8,7 +8,7 @@
 
 import OctokitInitializer from '../src/initializers/OctokitInitializer'
 import { config } from "../src/config";
-import { msigTopup, exceptionMsigTopup } from '../src/msigTopup'
+import { msigTopup, exceptionMsigTopup, checkV3LastTwoWeeksAndReturnDatacapToBeRequested as allowanceRequest } from '../src/msigTopup'
 import { anyToBytes } from '../src/utils';
 const exceptions = config.exceptionJson
 
@@ -19,6 +19,12 @@ jest.setTimeout(20000)
 /**
  * @TODO test checkV3LastTwoWeeksAndReturnDatacapToBeRequested function
  */
+describe('test checkV3LastTwoWeeksAndReturnDatacapToBeRequested', () => {
+    it.only('should get the allowance', async () => {
+        const allowance = await allowanceRequest(config.v3MultisigDatacapAllowanceBytes)
+        expect(allowance).not.toBeFalsy()
+    })
+})
 
 describe('test multisig monitoring', () => {
 

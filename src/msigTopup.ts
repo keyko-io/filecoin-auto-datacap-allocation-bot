@@ -136,7 +136,7 @@ export const checkV3LastTwoWeeksAndReturnDatacapToBeRequested = async (baselineA
             },
         });
 
-        const apiAllowance =  allowanceAssignedToLdnV3InLast2Weeks.data.allowance as number
+        const apiAllowance = (allowanceAssignedToLdnV3InLast2Weeks.data.allowance as number) * 2
 
 
         if (apiAllowance > baselineAllowanceBytes) {
