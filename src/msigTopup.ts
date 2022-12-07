@@ -13,6 +13,7 @@ import { V3Exception } from "./types"
 const api = ApiInitializer.getInstance()
 const octokit = OctokitInitializer.getInstance()
 const exceptions = config.exceptionJson
+console.log('exceptions', exceptions)
 
 
 export const msigTopup = async () => {
