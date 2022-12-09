@@ -25,5 +25,5 @@ export type MetricsApiParams = {
     amount?: string,
     requestNumber?: string | number
     messageCid?: any,
-    uuid: string
+    uuid?: string
 }
