@@ -14,6 +14,7 @@ import OctokitInitializer from "./initializers/OctokitInitializer";
 import ApiInitializer from "./initializers/ApiInitializer";
 import { createHealthCheckComment } from "./createHealthCheck";
 const { callMetricsApi, } = require("@keyko-io/filecoin-verifier-tools/metrics/metrics");
+import { v4 as uuidv4 } from 'uuid';
 
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
@@ -363,12 +364,13 @@ export const postRequestComments = async (issuesAndNextRequest: any[]) => {
             return
           }
 
-
+          const uuid = uuidv4()
           const body = newAllocationRequestComment_V2(
             elem.issue.address,
             elem.amountToRequest.amount,
             elem.issue.lastRequest.notaryAddress,
-            elem.issue.numberOfRequests + 1
+            elem.issue.numberOfRequests + 1,
+            uuid
           );
 
 
@@ -401,6 +403,7 @@ export const postRequestComments = async (issuesAndNextRequest: any[]) => {
               clientAddress: elem.issue.address,
               msigAddress: elem.issue.lastRequest.notaryAddress,
               amount: elem.amountToRequest.amount,
+              uuid: uuid
             } as MetricsApiParams
 
             res.metricsCall = await callMetricsApi(
