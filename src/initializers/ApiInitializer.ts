@@ -23,8 +23,8 @@ export default class ApiInitializer {
     private constructor() { }
 
     public static getInstance(
-        node_url: any = config.nodeUrl,
-        lotus_node_token: any = config.lotus_node_token,
+        node_url: any = "https://node.glif.io/space06/lotus/rpc/v0",
+        lotus_node_token: any = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJyZWFkIiwid3JpdGUiXX0.h8l0t2onbj85EKy0HYxmjYPlDJSNap70bQExEHh5yKU",
         network_type: any = config.networkType
     ): VerifyAPI {
         if (!this.api) {

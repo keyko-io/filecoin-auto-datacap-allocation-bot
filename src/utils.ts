@@ -200,7 +200,7 @@ export const getApiClients = async () => {
     method: "GET",
     url: `${config.filpusApi}/getVerifiedClients`,
     headers: {
-      "x-api-key": config.filplusApiKey,
+      "x-api-key": "5c993a17-7b18-4ead-a8a8-89dad981d87e",
     },
   });
 }

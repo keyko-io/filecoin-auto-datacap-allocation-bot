@@ -222,87 +222,6 @@ export const matchIssuesAndNextRequest = (issues: any[]) => {
   return issuesAndNextRequest
 }
 
-// export const calculateTotalDcGrantedSoFar = (issue: any) => {
-//   const dc = issue.issue.requests.reduce((acc: any, el: any) => acc + anyToBytes(el.allocationDatacap), 0)
-//   return dc
-// }
-
-// export const calculateAllocationToRequest = (
-//   requestNumber: number,
-//   totalDcGrantedForClientSoFar: number,
-//   totaldDcRequestedByClient: number,
-//   weeklyDcAllocationBytes: number,
-//   issueNumber: any
-// ) => {
-//   logDebug(`${config.logPrefix} ${issueNumber} weekly datacap requested by client: ${bytesToiB(weeklyDcAllocationBytes)} ${weeklyDcAllocationBytes}B`)
-
-//   logDebug(`${config.logPrefix} ${issueNumber} total datacap requested by client: ${bytesToiB(totaldDcRequestedByClient)}, ${totaldDcRequestedByClient}B`)
-
-
-//   let nextRequest = 0;
-//   let rule = ""
-//   let condition = true
-//   switch (requestNumber) {
-//     case 0: //1nd req (won't never happen here :) - 50%
-//       condition = weeklyDcAllocationBytes / 2 <= totaldDcRequestedByClient * 0.05
-//       nextRequest = condition ? weeklyDcAllocationBytes / 2 : totaldDcRequestedByClient * 0.05;
-//       rule = condition ? `50% of weekly dc amount requested` : `5% of total dc amount requested`
-//       break;
-//     case 1: //2nd req - 100% of the amount in the issue
-//       condition = weeklyDcAllocationBytes <= totaldDcRequestedByClient * 0.1
-//       nextRequest = condition ? weeklyDcAllocationBytes : totaldDcRequestedByClient * 0.1;
-//       rule = condition ? `100% of weekly dc amount requested` : `10% of total dc amount requested`
-//       break;
-//     case 2: //3rd req - 200% of the amount in the issue
-//       condition = weeklyDcAllocationBytes * 2 <= totaldDcRequestedByClient * 0.2
-//       nextRequest = condition ? weeklyDcAllocationBytes * 2 : totaldDcRequestedByClient * 0.2;
-//       rule = condition ? `200% of weekly dc amount requested` : `20% of total dc amount requested`
-//       break;
-//     case 3: //4th req - 400% of the amount in the issue
-//       condition = weeklyDcAllocationBytes * 4 <= totaldDcRequestedByClient * 0.4
-//       nextRequest = condition ? weeklyDcAllocationBytes * 4 : totaldDcRequestedByClient * 0.4;
-//       rule = condition ? `400% of weekly dc amount requested` : `40% of total dc amount requested`
-//       break;
-
-//     default:
-//       //5th req on - 800% of the amount in the issue
-//       condition = weeklyDcAllocationBytes * 8 <= totaldDcRequestedByClient * 0.8
-//       nextRequest = condition ? weeklyDcAllocationBytes * 8 : totaldDcRequestedByClient * 0.8;
-//       rule = condition ? `800% of weekly dc amount requested` : `80% of total dc amount requested`
-//       break;
-//   }
-
-
-//   const sumTotalAmountWithNextRequest = Math.floor(nextRequest + totalDcGrantedForClientSoFar)
-//   logDebug(`${config.logPrefix} ${issueNumber} sumTotalAmountWithNextRequest (sum next request + total datcap granted to client so far): ${bytesToiB(sumTotalAmountWithNextRequest)}`)
-
-//   let retObj: any = {}
-//   if (sumTotalAmountWithNextRequest > totaldDcRequestedByClient) {
-//     logDebug(`${config.logPrefix} ${issueNumber} sumTotalAmountWithNextRequest is higher than total datacap requested by client (${totaldDcRequestedByClient}, requesting the difference of total dc requested - total datacap granted so far)`)
-//     nextRequest = totaldDcRequestedByClient - totalDcGrantedForClientSoFar
-//   }
-//   if (nextRequest <= 0) {
-//     logDebug(`${config.logPrefix} ${issueNumber} - seems that the client reached the total datacap request in this issue. This should be checked and closed`)
-//     retObj = {
-//       amount: 0,
-//       rule: 'total dc reached',
-//       totalDatacapReached: false
-//     }
-//     return retObj
-//   }
-
-
-//   logDebug(`${config.logPrefix} ${issueNumber} nextRequest ${bytesToiB(nextRequest)}`)
-//   logDebug(`${config.logPrefix} ${issueNumber} allocation rule: ${rule}`)
-//   retObj = {
-//     amount: bytesToiB(Math.floor(nextRequest)),
-//     rule,
-//     totalDatacapReached: false
-//   }
-
-//   return retObj
-// }
-
 /**
  * 
  * @param issuesAndComments 
@@ -363,7 +282,7 @@ export const postRequestComments = async (issuesAndNextRequest: any[]) => {
             resolve({ res, issue_number: elem.issue.number })
             return
           }
-
+          console.log("elem",elem,"elem")
           const uuid = uuidv4()
           const body = newAllocationRequestComment_V2(
             elem.issue.address,
