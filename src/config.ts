@@ -1,5 +1,6 @@
 import dotenv from "dotenv"
-dotenv.config({ path: `.env.${process.env.NODE_ENV}` })
+// dotenv.config({ path: `.env.${process.env.NODE_ENV}` })
+dotenv.config({ path: `./.env` })
 import v3_exception_test from '@keyko-io/filecoin-content/json/test/v3_exceptions_test.json'
 import v3_exception_prod from '@keyko-io/filecoin-content/json/prod/v3_exceptions_prod.json'
 
@@ -15,8 +16,8 @@ export const config = {
     appId: process.env.APP_ID,
     clientId: process.env.CLIENT_ID,
     clientSecret: process.env.CLIENT_SECRET,
-    beginPk: process.env.GIT_BEGIN_PK,
-    endPk: process.env.GIT_END_PK,
+    beginPk: process.env.GIT_BEGIN_PK || `-----BEGIN RSA PRIVATE KEY-----`,
+    endPk: process.env.GIT_END_PK || `-----END RSA PRIVATE KEY-----`,
     privateKey: process.env.GIT_PRIVATE_KEY,
     installationID: process.env.INSTALLATION_ID,
     notariersJsonPath: process.env.VERIFIERS_JSON_PATH_PROD,

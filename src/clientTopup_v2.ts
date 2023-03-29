@@ -1,8 +1,7 @@
 import { config } from "./config";
-import { bytesToiB, anyToBytes, findClient, getApiClients, getDeltaDcAndDcGranted, getTotalDcGrantedSoFar, getGithubHandlesForAddress, calculateTotalDcGrantedSoFar, calculateAllocationToRequest } from "./utils";
+import { bytesToiB, anyToBytes, findClient, getApiClients, getDeltaDcAndDcGranted,  calculateAllocationToRequest, getRemainingDataCap } from "./utils";
 import { newAllocationRequestComment_V2, statsComment_v2 } from "./comments";
 import {
-  parseReleaseRequest,
   parseApprovedRequestWithSignerAddress,
   parseIssue,
 } from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
@@ -15,6 +14,7 @@ import ApiInitializer from "./initializers/ApiInitializer";
 import { createHealthCheckComment } from "./createHealthCheck";
 const { callMetricsApi, } = require("@keyko-io/filecoin-verifier-tools/metrics/metrics");
 import { v4 as uuidv4 } from 'uuid';
+import { AllowanceArrayElement, DmobClient } from "./types_clientTopup_v3";
 
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
@@ -39,13 +39,13 @@ export const clientsTopup_v2 = async () => {
 
     let issuez = await getIssuez();
 
-    const nodeClientz = await getNodeClients()
+    // const nodeClientz = await getNodeClients()
 
-    const match = matchGithubAndNodeClients(issuez, nodeClientz, apiClients)
+    const match = matchGithubAndNodeClients(issuez, apiClients)
 
-    const issuesAndCommentz = await matchIssuesAndComments(match)
+    const issuesAndCommentz = await matchIssuesAndRequests(match)
 
-    const issuesAndMargin = checkPostNewRequest(issuesAndCommentz);
+    const issuesAndMargin = await checkPostNewRequest(issuesAndCommentz);
 
     const issuesAndNextRequest = matchIssuesAndNextRequest(issuesAndMargin)
 
@@ -124,7 +124,7 @@ export const getNodeClients = async (): Promise<NodeClient[]> => {
  * @returns info from issue + info from node
  * @edgeCase it retrieves the client from the dmob api if it has 0 dc 
  */
-export const matchGithubAndNodeClients = (issues: any[], nodeClients: NodeClient[], apiClients: any) => {
+export const matchGithubAndNodeClients = (issues: any[], apiClients: any) => {
   const parsedIssues = issues.filter((i: any) => parseIssue(i.body).correct)
     .map((i: any) => {
       return {
@@ -136,28 +136,17 @@ export const matchGithubAndNodeClients = (issues: any[], nodeClients: NodeClient
   let match = []
 
   for (let i of parsedIssues) {
+    const dmobClient: DmobClient | boolean = findClient(apiClients, i.parsed.address)
 
-    const n = nodeClients.find((n: any) => n.address === i.parsed.address || n.idAddress === i.parsed.address)
-    if (n) {
+    if (dmobClient) {
       match.push(
         {
           ...i,
-          ...n
-        }
-      )
-    } else {
-      //edge case
-      logWarn(`${config.logPrefix} ${i.number} - It looks like the client has 0B datacap remaining.`)
-      const dmobClient = findClient(apiClients, i.parsed.address)
-      if (dmobClient) {
-        match.push(
-          {
-            ...i,
-            idAddress: dmobClient.addressId,
-            address: dmobClient.address,
-            datacap: dmobClient.allowance
-          })
-      }
+          idAddress: dmobClient.addressId,
+          address: dmobClient.address,
+          datacap: dmobClient.allowance,
+          allowanceArray: dmobClient.allowanceArray
+        })
     }
   }
   return match
@@ -169,36 +158,21 @@ export const matchGithubAndNodeClients = (issues: any[], nodeClients: NodeClient
  * @param match 
  * @returns issues matched with all its comments
  */
-export const matchIssuesAndComments = async (match: any[]) => {
-  return await Promise.all(
-    match.map((issue: any) => new Promise<any>(async (resolve, reject) => {
-      try {
-        const comments = await octokit.paginate(octokit.rest.issues.listComments,
-          {
-            owner,
-            repo,
-            issue_number: issue.number,
-          });
+export const matchIssuesAndRequests = async (match: any[]) => {
+  const issuesAndRequests = match.map((issue: any) => {
+    const requests = issue.allowanceArray
 
-        const requests = comments.filter(
-          (c: any) => parseReleaseRequest(c.body).correct
-        ).map((c: any) => parseReleaseRequest(c.body))
+    const lastRequest = requests[0]
 
-        const lastRequest = requests[requests.length - 1]
+    // issue.comments = comments
+    issue.numberOfRequests = requests.length
+    issue.lastRequest = lastRequest
+    issue.requests = requests
 
-        issue.comments = comments
-        issue.numberOfRequests = requests.length
-        issue.lastRequest = lastRequest
-        issue.requests = requests
-
-        resolve({
-          issue
-        });
-      } catch (error) {
-        reject(error);
-      }
-    }))
-  );
+    // resolve({
+    return issue
+  })
+  return issuesAndRequests
 }
 
 /**
@@ -210,11 +184,16 @@ export const matchIssuesAndNextRequest = (issues: any[]) => {
   const issuesAndNextRequest = []
   for (let elem of issues) {
     if (elem.postRequest) {
-      const requestNumber = elem.issue.numberOfRequests
-      const totalDcGrantedForClientSoFar = calculateTotalDcGrantedSoFar(elem)
-      const totaldDcRequestedByClient = anyToBytes(elem.issue.parsed.datacapRequested)
-      const weeklyDcAllocationBytes = anyToBytes(elem.issue.parsed.dataCapWeeklyAllocation)
-      const amountToRequest = calculateAllocationToRequest(requestNumber, totalDcGrantedForClientSoFar, totaldDcRequestedByClient, weeklyDcAllocationBytes, elem.issue.number)
+      const requestNumber = elem.numberOfRequests
+
+
+      const totalDcGrantedForClientSoFar = parseInt(elem.allowanceArray.reduce((acc: any, current: AllowanceArrayElement) => acc += parseInt(current.allowance), 0))
+
+      const totaldDcRequestedByClient = anyToBytes(elem.parsed.datacapRequested)
+
+      const weeklyDcAllocationBytes = anyToBytes(elem.parsed.dataCapWeeklyAllocation)
+
+      const amountToRequest = calculateAllocationToRequest(requestNumber, totalDcGrantedForClientSoFar, totaldDcRequestedByClient, weeklyDcAllocationBytes, elem.number)
       elem.amountToRequest = amountToRequest
       issuesAndNextRequest.push(elem)
     }
@@ -227,27 +206,39 @@ export const matchIssuesAndNextRequest = (issues: any[]) => {
  * @param issuesAndComments 
  * @returns issuesAndComments + postRequest: boolean, margin: number
  */
-export const checkPostNewRequest = (issuesAndComments: any[]) => {
-  const postRequest = []
-  for (let elem of issuesAndComments) {
-    elem.postRequest = false
-    if (elem.issue.lastRequest) {
+export const checkPostNewRequest = async (issuesAndComments: any[]) => {
+  const postRequests = []
+
+  const issuesWithRemainingDc = await Promise.allSettled(
+    issuesAndComments.map((issue: any) => new Promise(async (resolve, reject) => {
+      try {
+        issue.remainingDatacap = await getRemainingDataCap(issue.address)
+        resolve(issue)
+      } catch (error) {
+        reject(error)
+      }
+    }))
+  )
+  const issues = issuesWithRemainingDc.filter((i: any) => i.status == 'fulfilled').map((i: any) => i.value)
+
+  for (let issue of issues) {
+    if (issue.lastRequest && issue.remainingDatacap) {
       let margin = 0
-      const last = anyToBytes(elem.issue.lastRequest.allocationDatacap)
-      const remaining = parseInt(elem.issue.datacap)
+      const last = parseInt(issue.lastRequest.allowance)
+      const remaining = parseInt(issue.remainingDatacap)
+
       if (remaining && last)
         margin = remaining / last
 
-      if (margin <= 0.25)
-        elem.postRequest = true
+      if (margin <= 0.25) {
+        issue.postRequest = true
+        postRequests.push(issue)
+      }
 
-      elem.margin = margin;
-      logGeneral(`${config.logPrefix} ${elem.issue.number} datacap remaining / datacp allocated: ${(margin * 100).toFixed(2)} %`)
-
-      postRequest.push(elem)
+      logGeneral(`${config.logPrefix} ${issue.number} datacap remaining / datacp allocated: ${(margin * 100).toFixed(2)} %`)
     }
   }
-  return postRequest
+  return postRequests
 }
 
 /**
@@ -269,30 +260,30 @@ export const postRequestComments = async (issuesAndNextRequest: any[]) => {
             res.commentResult = await octokit.issues.createComment({
               owner,
               repo,
-              issue_number: elem.issue.number,
+              issue_number: elem.number,
               body: dcReachedBody,
             })
             await octokit.issues.addLabels({
               owner,
               repo,
-              issue_number: elem.issue.number,
+              issue_number: elem.number,
               labels: ["issue:TotalDcReached"],
             });
-            logGeneral(`${config.logPrefix} ${elem.issue.number}, posted close request comment.`)
-            resolve({ res, issue_number: elem.issue.number })
+            logGeneral(`${config.logPrefix} ${elem.number}, posted close request comment.`)
+            resolve({ res, issue_number: elem.number })
             return
           }
 
           const MSIG_V3 = "f01858410"
           const MSIG_V3_1 = "f02049625"
-          
-          const msigAddress = elem.issue.lastRequest.notaryAddress == MSIG_V3 ? MSIG_V3_1 : elem.issue.lastRequest.notaryAddress
+          const notaryAddress = elem.lastRequest.verifierAddressId == MSIG_V3 ? MSIG_V3_1 : elem.lastRequest.verifierAddressId
+
           const uuid = uuidv4()
           const body = newAllocationRequestComment_V2(
-            elem.issue.address,
+            elem.address,
             elem.amountToRequest.amount,
-            msigAddress,
-            elem.issue.numberOfRequests + 1,
+            notaryAddress,
+            elem.numberOfRequests + 1,
             uuid
           );
 
@@ -301,7 +292,7 @@ export const postRequestComments = async (issuesAndNextRequest: any[]) => {
           res.commentResult = await octokit.issues.createComment({
             owner,
             repo,
-            issue_number: elem.issue.number,
+            issue_number: elem.number,
             body,
           });
 
@@ -310,36 +301,36 @@ export const postRequestComments = async (issuesAndNextRequest: any[]) => {
             res.removeLabels = await octokit.issues.removeAllLabels({
               owner,
               repo,
-              issue_number: elem.issue.number,
+              issue_number: elem.number,
             });
 
             res.addLabels = await octokit.issues.addLabels({
               owner,
               repo,
-              issue_number: elem.issue.number,
+              issue_number: elem.number,
               labels: ["bot:readyToSign", "state:Approved"],
             });
 
             //metrics
             res.metricsParams = {
-              name: elem.issue.parsed.name,
-              clientAddress: elem.issue.address,
-              msigAddress: elem.issue.lastRequest.notaryAddress,
+              name: elem.parsed.name,
+              clientAddress: elem.address,
+              msigAddress: notaryAddress,
               amount: elem.amountToRequest.amount,
               uuid: uuid
             } as MetricsApiParams
 
             res.metricsCall = await callMetricsApi(
-              elem.issue.number,
+              elem.number,
               EVENT_TYPE.SUBSEQUENT_DC_REQUEST,
               res.metricsParams
             )
 
 
           }
-          logGeneral(`CREATE REQUEST COMMENT ${config.logPrefix} ${elem.issue.number}, posted new datacap request comment.`)
+          logGeneral(`CREATE REQUEST COMMENT ${config.logPrefix} ${elem.number}, posted new datacap request comment.`)
 
-          resolve({ res, body, issue_number: elem.issue.number });
+          resolve({ res, body, issue_number: elem.number });
         } catch (error) {
           reject(error);
         }
@@ -386,47 +377,49 @@ export const retrieveLastTwoSigners = (
  */
 export const postStatsComments = async (issuesAndNextRequest: any[], apiClients: any) => {
   try {
-
-
-
-    const clients = apiClients.data.data;
-
-    //GET NOTARIES FROM JSON
-    let notaries: any = await octokit.request(
-      `GET ${config.notariersJsonPath}`
-    );
-    notaries = JSON.parse(notaries.data).notaries;
-
+    //GET NOTARIES FROM JSON TODO: restore this
+    // let notaries: any = await octokit.request(
+    //   `GET ${config.notariersJsonPath}`
+    // );
+    // notaries = JSON.parse(notaries.data).notaries;
+    // console.log(notaries)
     //POST STAT COMMENT
     return await Promise.allSettled(issuesAndNextRequest.map((elem: any) => new Promise<any>(async (resolve, reject) => {
       try {
 
-        let client = clients.find((item: any) => item.address === elem.issue.address)
+        let client = findClient(apiClients, elem.address)
+        // let client = clients.find((item: any) => item.address === elem.address)
 
         // const addresses = ['addr1', 'addr2'] // need to make some function for that
-        const addresses = retrieveLastTwoSigners(
-          elem.issue.comments,
-          elem.issue.number
-        )
-        const githubHandles = getGithubHandlesForAddress(addresses || ['addr1', 'addr2'], notaries)
+
+        // const allowanceArraySorted : AllowanceArrayElement[]= elem.allowanceArray.sort()
+
+        //TODO find a good way to get the signers
+        // const addresses = retrieveLastTwoSigners(
+        //   elem.comments,
+        //   elem.number
+        // )
+
+        // const githubHandles = getGithubHandlesForAddress(allowanceArraySorted[] || ['addr1', 'addr2'], notaries)
 
 
-        const totalDcGrantedForClientSoFar = client ? getTotalDcGrantedSoFar(client) : 1000
+        const totalDcGrantedForClientSoFar = parseInt(elem.allowanceArray.reduce((acc: any, current: AllowanceArrayElement) => acc += current.allowance, 0))
+
         const deltaTotalDcAndDatacapGranted = getDeltaDcAndDcGranted(elem, totalDcGrantedForClientSoFar)
 
         const content = {
-          msigAddress: elem.issue.lastRequest.notaryAddress,
-          address: elem.issue.address,
+          msigAddress: elem.lastRequest.verifierAddressId,
+          address: elem.address,
           topProvider: client ? client.topProvider : 'not found',
           nDeals: client ? client.dealCount : 'not found',
-          previousDcAllocated: elem.issue.lastRequest.allocationDatacap,
+          previousDcAllocated: bytesToiB(elem.lastRequest.allowance),
           dcAllocationRequested: elem.amountToRequest.amount,
           nStorageProviders: client ? client.providerCount : 'not found',
-          remainingDatacap: bytesToiB(elem.issue.datacap),
-          actorAddress: elem.issue.idAddress,
-          githubHandles: githubHandles ? githubHandles : ['not found'],
+          remainingDatacap: bytesToiB(elem.datacap),
+          actorAddress: elem.idAddress,
+          // githubHandles: githubHandles ? githubHandles : ['not found'],
           totalDcGrantedForClientSoFar: client ? bytesToiB(totalDcGrantedForClientSoFar) : 'not found',
-          totaldDcRequestedByClient: elem.issue.parsed.datacapRequested,
+          totaldDcRequestedByClient: elem.parsed.datacapRequested,
           deltaTotalDcAndDatacapGranted: client ? bytesToiB(deltaTotalDcAndDatacapGranted) : 'not found', // info.deltaTotalDcAndDatacapGranted,
           rule: elem.amountToRequest.rule
         }
@@ -437,12 +430,12 @@ export const postStatsComments = async (issuesAndNextRequest: any[], apiClients:
           call: await octokit.issues.createComment({
             owner,
             repo,
-            issue_number: elem.issue.number,
+            issue_number: elem.number,
             body,
           }),
           content
         })
-        logGeneral(`CREATE STATS COMMENT ${config.logPrefix} ${elem.issue.number}, posted new stats comment.`)
+        logGeneral(`CREATE STATS COMMENT ${config.logPrefix} ${elem.number}, posted new stats comment.`)
 
 
       } catch (error) {
