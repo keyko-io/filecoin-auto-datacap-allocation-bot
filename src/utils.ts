@@ -3,10 +3,10 @@ import { logDebug, logGeneral } from './logger/consoleLogger'
 import { config } from './config'
 import axios from 'axios';
 import OctokitInitializer from './initializers/OctokitInitializer';
+import { DmobClient } from './types_clientTopup_v3';
 const byteConverter = new ByteConverter()
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
-const octokit = OctokitInitializer.getInstance()
 
 
 export const matchGroup = (regex, content) => {
@@ -108,7 +108,7 @@ export const checkLabel = (issue: any) => {
     iss.label = LabelsEnum.STATUS_APPROVED
     return iss
   }
-  if (issue.labels.find((item: any) => item.name === LabelsEnum.STATUS_VERIFYING) ) {
+  if (issue.labels.find((item: any) => item.name === LabelsEnum.STATUS_VERIFYING)) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> Issue is still in verifying phase.`);
     iss.skip = true
     iss.label = LabelsEnum.STATUS_VERIFYING
@@ -162,9 +162,22 @@ export const commentsForEachIssue = async (octokit: any, rawIssues: any) => {
 }
 
 export const findClient = (apiClients: any, address: any) => {
-  const el = apiClients.data.data.find((item: any) => item.address === address)
-  if (el) return el
-  else return false
+  const clientArr = apiClients.data.data.filter((item: any) => item.address === address)
+//So initial allowance is the sum of the allowances so far
+//Allowance is the remaining datacap
+  let client: DmobClient
+  if (clientArr.length == 1) {
+    client = clientArr[0]
+  }
+  else {
+    client = clientArr[0]
+    for (let i = 1; i< clientArr.length; i++){
+      client.allowanceArray = [...client.allowanceArray, ...clientArr[i].allowanceArray]
+    }
+    client
+  }
+  if (!client) return false
+  return client
 }
 
 export const getTotalDcGrantedSoFar = (client: any) => {
@@ -180,7 +193,7 @@ export const getTotalDcGrantedSoFar = (client: any) => {
 }
 
 export const getDeltaDcAndDcGranted = (elem: any, totalDcGrantedForClientSoFar: any) => {
-  return anyToBytes(elem.issue.parsed.datacapRequested) - totalDcGrantedForClientSoFar;
+  return anyToBytes(elem.parsed.datacapRequested) - totalDcGrantedForClientSoFar;
 }
 
 export const getGithubHandlesForAddress = (addresses: string[], notaries: any) => {
@@ -196,13 +209,34 @@ export const getGithubHandlesForAddress = (addresses: string[], notaries: any) =
  * @returns the clients from dmob api
  */
 export const getApiClients = async () => {
-  return await axios({
-    method: "GET",
-    url: `${config.filpusApi}/getVerifiedClients`,
-    headers: {
-      "x-api-key": "5c993a17-7b18-4ead-a8a8-89dad981d87e",
-    },
-  });
+  try {
+    return await axios({
+      method: "GET",
+      url: `${config.filpusApi}/getVerifiedClients`,
+      headers: {
+        "x-api-key": "5c993a17-7b18-4ead-a8a8-89dad981d87e",
+      },
+    });
+  } catch (error) {
+    console.log(error)
+  }
+}
+
+
+// https://api.filplus.d.interplanetary.one/public/api/getAllowanceForAddress/f1ais6zhflnr5izuabqcibedpvbjcurjzybzcnqpa
+export const getRemainingDataCap = async (address) => {
+  try {
+    const r = await axios({
+      method: "GET",
+      url: `${config.filpusApi}/getAllowanceForAddress/${address}`,
+      headers: {
+        "x-api-key": "5c993a17-7b18-4ead-a8a8-89dad981d87e",
+      },
+    });
+    return r.data.allowance
+  } catch (error) {
+    console.log(error)
+  }
 }
 
 export const calculateTotalDcGrantedSoFar = (issue: any) => {
