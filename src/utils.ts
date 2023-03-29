@@ -66,7 +66,8 @@ enum LabelsEnum {
   STATUS_APPROVED = "status:Approved",
   STATUS_START_SIGN_ON_CHAIN = "status:StartSignOnchain",
   STATUS_VERIFYING = "status:Verifying",
-  STATUS_DC_REQUEST_POSTED = "status:dcRequestPosted"
+  STATUS_DC_REQUEST_POSTED = "status:dcRequestPosted",
+  BOT_REVIEW_NEEDED = "bot:reviewNeeded"
 }
 
 export const checkLabel = (issue: any) => {
@@ -112,6 +113,12 @@ export const checkLabel = (issue: any) => {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> Issue is still in verifying phase.`);
     iss.skip = true
     iss.label = LabelsEnum.STATUS_VERIFYING
+    return iss
+  }
+  if (issue.labels.find((item: any) => item.name === LabelsEnum.BOT_REVIEW_NEEDED) ) {
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> issue need review`);
+    iss.skip = true
+    iss.label = LabelsEnum.BOT_REVIEW_NEEDED
     return iss
   }
 

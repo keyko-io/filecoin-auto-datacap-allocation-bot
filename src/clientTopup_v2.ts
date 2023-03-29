@@ -273,9 +273,11 @@ export const postRequestComments = async (issuesAndNextRequest: any[]) => {
             resolve({ res, issue_number: elem.number })
             return
           }
+
           const MSIG_V3 = "f01858410"
           const MSIG_V3_1 = "f02049625"
           const notaryAddress = elem.lastRequest.verifierAddressId == MSIG_V3 ? MSIG_V3_1 : elem.lastRequest.verifierAddressId
+
           const uuid = uuidv4()
           const body = newAllocationRequestComment_V2(
             elem.address,
