@@ -127,5 +127,5 @@ export const statsComment_v2 = (comment: {
 
 
 export const multisigApprovalComment = (address: string, dataCap: string): string => {
-    return `\r\n## Request Approved\r\n#### Address\r\n> ${address}\r\n#### Datacap Allocated\r\n> ${dataCap}\r\n`
+    return `\r\n## Datacap Request For MultiSig\r\n#### Address\r\n> ${address}\r\n#### Datacap Allocated\r\n> ${dataCap}\r\n`
 }
