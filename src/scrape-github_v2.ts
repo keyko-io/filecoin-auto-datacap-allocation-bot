@@ -3,20 +3,13 @@
  */
 import { Octokit } from "@octokit/rest";
 import { config } from "./config";
-import {
-    runSpreadSheetFiller
-} from "../deps/filecoin-verifier-tools/spreadsheet/spreadsheetFiller"
 import { createAppAuth } from "@octokit/auth-app"
-import { SpreadsheetData } from "./types"
 import {
     parseReleaseRequest,
     parseIssue,
-    parseMultisigNotaryRequest,
     parseApprovedRequestWithSignerAddress
-} from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js"
-import { commentsForEachIssue } from './utils'
+} from "@keyko-io/filecoin-verifier-tools/lib/utils/large-issue-parser.js"
 import { EVENT_TYPE, MetricsApiParams } from "./Metrics";
-import { parse } from "dotenv";
 const { callMetricsApi } = require('@keyko-io/filecoin-verifier-tools/metrics/metrics')
 
 

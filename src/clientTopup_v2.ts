@@ -1,20 +1,18 @@
 import { config } from "./config";
 import { bytesToiB, anyToBytes, findClient, getApiClients, getDeltaDcAndDcGranted,  calculateAllocationToRequest, getRemainingDataCap } from "./utils";
 import { newAllocationRequestComment_V2, statsComment_v2 } from "./comments";
-import {
-  parseApprovedRequestWithSignerAddress,
-  parseIssue,
-} from "@keyko-io/filecoin-verifier-tools/utils/large-issue-parser.js";
+import { parseIssue, parseApprovedRequestWithSignerAddress} from '@keyko-io/filecoin-verifier-tools/lib/utils/large-issue-parser';
 import { EVENT_TYPE, MetricsApiParams } from "./Metrics";
 import { logGeneral, logWarn, logDebug, logError } from './logger/consoleLogger'
 import { checkLabel } from "./utils";
-import { NodeClient, ParseRequest } from "./types";
+import { NodeClient, ParseRequest } from "./types/types";
 import OctokitInitializer from "./initializers/OctokitInitializer";
 import ApiInitializer from "./initializers/ApiInitializer";
 import { createHealthCheckComment } from "./createHealthCheck";
-const { callMetricsApi, } = require("@keyko-io/filecoin-verifier-tools/metrics/metrics");
+import { callMetricsApi } from "@keyko-io/filecoin-verifier-tools/lib/metrics/metrics"
 import { v4 as uuidv4 } from 'uuid';
-import { AllowanceArrayElement, DmobClient } from "./types_clientTopup_v3";
+import { AllowanceArrayElement, DmobClient } from "./types/types_clientTopup";
+import { ParsedData } from "@keyko-io/filecoin-verifier-tools/lib/utils/ldn-parser-functions/parseApprovedRequestWithSignerAddress";
 
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
@@ -351,7 +349,7 @@ export const retrieveLastTwoSigners = (
     for (let i = len - 1; i >= 0; i--) {
       if (requestList.length === 2) break;
 
-      const parseRequest: ParseRequest = parseApprovedRequestWithSignerAddress(
+      const parseRequest: ParsedData = parseApprovedRequestWithSignerAddress(
         issueComments[i].body
       );
 

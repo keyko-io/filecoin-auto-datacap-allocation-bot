@@ -1,6 +1,3 @@
-// import axios from 'axios';
-// const baseURL = process.env.METRICS_API_URL || ""
-
 export enum EVENT_TYPE {
     CREATE_APPLICATION = "create_application",
     MULTISIG_CREATION = "multisig_creation",

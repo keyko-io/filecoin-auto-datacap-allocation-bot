@@ -2,8 +2,7 @@ import ByteConverter from '@wtfcode/byte-converter'
 import { logDebug, logGeneral } from './logger/consoleLogger'
 import { config } from './config'
 import axios from 'axios';
-import OctokitInitializer from './initializers/OctokitInitializer';
-import { DmobClient } from './types_clientTopup_v3';
+import { DmobClient } from './types/types_clientTopup';
 const byteConverter = new ByteConverter()
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
@@ -78,44 +77,44 @@ export const checkLabel = (issue: any) => {
     skip: false
   }
 
-  if (issue.labels.find((item: any) => item.name === LabelsEnum.READY_TO_SIGN)) {
+  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LabelsEnum.READY_TO_SIGN.toLowerCase().replace(/ /g,''))) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LabelsEnum.READY_TO_SIGN} is present`);
     iss.skip = true
     iss.label = LabelsEnum.READY_TO_SIGN
     return iss
   }
   if (
-    issue.labels.find((item: any) => item.name === LabelsEnum.NEED_DILIGENCE)) {
+    issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LabelsEnum.NEED_DILIGENCE.toLowerCase().replace(/ /g,''))) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LabelsEnum.NEED_DILIGENCE} is present`);
     iss.skip = true
     iss.label = LabelsEnum.NEED_DILIGENCE
     return iss
   }
-  if (issue.labels.find((item: any) => item.name === LabelsEnum.ERROR)) {
+  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LabelsEnum.ERROR.toLowerCase().replace(/ /g,''))) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LabelsEnum.ERROR} is present`);
     iss.skip = true
     iss.label = LabelsEnum.ERROR
     return iss
   }
-  if (issue.labels.find((item: any) => item.name === LabelsEnum.TOTAL_DC_REACHED)) {
+  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LabelsEnum.TOTAL_DC_REACHED.toLowerCase().replace(/ /g,''))) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LabelsEnum.TOTAL_DC_REACHED} is present`);
     iss.skip = true
     iss.label = LabelsEnum.TOTAL_DC_REACHED
     return iss
   }
-  if (issue.labels.find((item: any) => item.name === LabelsEnum.STATUS_DC_REQUEST_POSTED) || issue.labels.find((item: any) => item.name === LabelsEnum.STATUS_START_SIGN_ON_CHAIN)) {
+  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LabelsEnum.STATUS_DC_REQUEST_POSTED.toLowerCase().replace(/ /g,'')) || issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LabelsEnum.STATUS_START_SIGN_ON_CHAIN.toLowerCase().replace(/ /g,''))) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> V3 Msig started the RKH signature round.`);
     iss.skip = true
     iss.label = LabelsEnum.STATUS_APPROVED
     return iss
   }
-  if (issue.labels.find((item: any) => item.name === LabelsEnum.STATUS_VERIFYING)) {
+  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LabelsEnum.STATUS_VERIFYING.toLowerCase().replace(/ /g,''))) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> Issue is still in verifying phase.`);
     iss.skip = true
     iss.label = LabelsEnum.STATUS_VERIFYING
     return iss
   }
-  if (issue.labels.find((item: any) => item.name === LabelsEnum.BOT_REVIEW_NEEDED) ) {
+  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LabelsEnum.BOT_REVIEW_NEEDED.toLowerCase().replace(/ /g,'')) ) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> issue need review`);
     iss.skip = true
     iss.label = LabelsEnum.BOT_REVIEW_NEEDED

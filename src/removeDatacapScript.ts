@@ -1,7 +1,7 @@
 import { Octokit } from "@octokit/rest";
 import { config } from "./config";
 import { createAppAuth } from "@octokit/auth-app"
-import { matchGroupLargeNotary } from "@keyko-io/filecoin-verifier-tools/utils/common-utils"
+import { matchGroupLargeNotary } from "@keyko-io/filecoin-verifier-tools/lib/utils/common-utils"
 
 const OWNER = process.env.GITHUB_LDN_REPO_OWNER;
 const REPO = process.env.GITHUB_NOTARY_REPO;
