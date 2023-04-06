@@ -6,7 +6,7 @@ import { logGeneral, logDebug } from './logger/consoleLogger'
 import { checkLabel } from "./utils";
 import OctokitInitializer from "./initializers/OctokitInitializer";
 import ApiInitializer from "./initializers/ApiInitializer";
-import { V3Exception } from "./types"
+import { V3Exception } from "./types/types"
 
 
 
@@ -47,7 +47,7 @@ export const msigTopup = async () => {
         // get datacap remaining and parse from b to tib
         // use getAllowanceForAddress
         let dataCapRemainingBytes: number = 0
-        if (config.networkType !== "test") {
+        // if (config.networkType !== "test") {
             const v3MultisigAllowance = await axios({
                 method: "GET",
                 url: `${config.filpusApi}/getAllowanceForAddress/${address}`,
@@ -56,10 +56,10 @@ export const msigTopup = async () => {
                 },
             });
             dataCapRemainingBytes = v3MultisigAllowance.data.allowance as number
-        }
-        else {
-            dataCapRemainingBytes = await api.checkVerifier(address).datacap as number
-        }
+        // }
+        // else {
+        //     dataCapRemainingBytes = await api.checkVerifier(address).datacap as number
+        // }
 
         // calculate margin ( dc remaining / 25PiB) --> remember to convert to bytes first
         let margin = 0
@@ -197,7 +197,7 @@ export const exceptionMsigTopup = async () => {
                     // use getAllowanceForAddress
 
                     let dataCapRemainingBytes = 0
-                    if (config.networkType !== "test") {
+                    // if (config.networkType !== "test") {
                         const v3MultisigAllowance = await axios({
                             method: "GET",
                             url: `${config.filpusApi}/getAllowanceForAddress/${address}`,
@@ -206,10 +206,10 @@ export const exceptionMsigTopup = async () => {
                             },
                         });
                         dataCapRemainingBytes = v3MultisigAllowance.data.allowance
-                    }
-                    else {
-                        dataCapRemainingBytes = await api.checkVerifier(address).datacap
-                    }
+                    // }
+                    // else {
+                    //     dataCapRemainingBytes = (await api.checkVerifier(address)).datacap
+                    // }
 
                     dataCapRemainingBytes = dataCapRemainingBytes ? dataCapRemainingBytes : 0
 
