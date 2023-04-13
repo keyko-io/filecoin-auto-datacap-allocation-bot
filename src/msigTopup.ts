@@ -7,6 +7,7 @@ import { checkLabel } from "./utils";
 import OctokitInitializer from "./initializers/OctokitInitializer";
 import ApiInitializer from "./initializers/ApiInitializer";
 import { V3Exception } from "./types/types"
+import { LABELS } from "./labels";
 
 
 
@@ -88,7 +89,8 @@ export const msigTopup = async () => {
                 owner: config.githubLDNOwner,
                 repo: config.githubNotaryRepo,
                 issue_number: issueNumber,
-                labels: ["status:Approved", "status:dcRequestPosted"],
+                // labels: ["status:Approved", "status:dcRequestPosted"],
+                labels: [LABELS.READY_TO_SIGN],
             });
 
 
@@ -101,14 +103,15 @@ export const msigTopup = async () => {
 
             const allLabels = issueContent.data.labels
 
-            const addedOnchainExist = allLabels.find((item: any) => item.name === "status:AddedOnchain")
+            const addedOnchainExist = allLabels.find((item: any) => item.name === LABELS.GRANTED)
+            // const addedOnchainExist = allLabels.find((item: any) => item.name === "status:AddedOnchain")
 
             if (addedOnchainExist) {
                 await octokit.rest.issues.removeLabel({
                     owner: config.githubLDNOwner,
                     repo: config.githubNotaryRepo,
                     issue_number: issueNumber,
-                    name: "status:AddedOnchain"
+                    name: LABELS.GRANTED
                 });
             }
 
@@ -234,7 +237,8 @@ export const exceptionMsigTopup = async () => {
                             owner: config.githubLDNOwner,
                             repo: config.githubNotaryRepo,
                             issue_number: issueNumber,
-                            labels: ["status:Approved", "status:dcRequestPosted"],
+                            // labels: ["status:Approved", "status:dcRequestPosted"],
+                            labels: [LABELS.READY_TO_SIGN],
                         });
 
                         logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot posted dc request for v3 specific multisig triggered. Address ${address}, issue #${issueNumber}`);
