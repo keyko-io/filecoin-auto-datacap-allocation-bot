@@ -3,7 +3,7 @@ import { logDebug, logGeneral } from './logger/consoleLogger'
 import { config } from './config'
 import axios from 'axios'
 import { DmobClient } from './types/types_clientTopup'
-import {LABELS} from './labels'
+import { LABELS } from './labels'
 
 const byteConverter = new ByteConverter()
 const owner = config.githubLDNOwner;
@@ -67,29 +67,36 @@ export const checkLabel = (issue: any) => {
     skip: false
   }
 
-  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LABELS.READY_TO_SIGN.toLowerCase().replace(/ /g,''))) {
+
+  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === LABELS.READY_TO_SIGN.toLowerCase().replace(/ /g, ''))) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LABELS.READY_TO_SIGN} is present`);
     iss.skip = true
     iss.label = LABELS.READY_TO_SIGN
     return iss
   }
   if (
-    issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LABELS.WAITING_FOR_CLIENT_REPLY.toLowerCase().replace(/ /g,''))) {
+    issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === LABELS.WAITING_FOR_CLIENT_REPLY.toLowerCase().replace(/ /g, ''))) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LABELS.WAITING_FOR_CLIENT_REPLY} is present`);
     iss.skip = true
     iss.label = LABELS.WAITING_FOR_CLIENT_REPLY
     return iss
   }
-  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LABELS.ERROR.toLowerCase().replace(/ /g,''))) {
+  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === LABELS.ERROR.toLowerCase().replace(/ /g, ''))) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LABELS.ERROR} is present`);
     iss.skip = true
     iss.label = LABELS.ERROR
     return iss
   }
-  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LABELS.TOTAL_DC_REACHED.toLowerCase().replace(/ /g,''))) {
+  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === LABELS.TOTAL_DC_REACHED.toLowerCase().replace(/ /g, ''))) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LABELS.TOTAL_DC_REACHED} is present`);
     iss.skip = true
     iss.label = LABELS.TOTAL_DC_REACHED
+    return iss
+  }
+  if (!issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === LABELS.VERIFIED_CLIENT.toLowerCase().replace(/ /g, ''))) {
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LABELS.VERIFIED_CLIENT} is missing, the issue still need to get the 1st round of datacap`);
+    iss.skip = true
+    iss.label = LABELS.VERIFIED_CLIENT
     return iss
   }
 
@@ -141,15 +148,15 @@ export const commentsForEachIssue = async (octokit: any, rawIssues: any) => {
 
 export const findClient = (apiClients: any, address: any) => {
   const clientArr = apiClients.data.data.filter((item: any) => item.address === address)
-//So initial allowance is the sum of the allowances so far
-//Allowance is the remaining datacap
+  //So initial allowance is the sum of the allowances so far
+  //Allowance is the remaining datacap
   let client: DmobClient
   if (clientArr.length == 1) {
     client = clientArr[0]
   }
   else {
     client = clientArr[0]
-    for (let i = 1; i< clientArr.length; i++){
+    for (let i = 1; i < clientArr.length; i++) {
       client.allowanceArray = [...client.allowanceArray, ...clientArr[i].allowanceArray]
     }
     client

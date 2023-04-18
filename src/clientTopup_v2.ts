@@ -54,7 +54,7 @@ export const clientsTopup_v2 = async () => {
 
     const issueCommented = postRequestz.length ? postRequestz.length : 0
 
-    await createHealthCheckComment(issueCommented);
+    await createHealthCheckComment(issueCommented,postRequestz.map((i: any) => i.issue_number));
 
     logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot ended.`);
     logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot issues commented: ${issueCommented}`)

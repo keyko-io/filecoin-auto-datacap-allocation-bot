@@ -1,4 +1,4 @@
-import { msigTopup, exceptionMsigTopup } from "./msigTopup";
+import { msigTopup, exceptionMsigTopup, addVerifiedClientLabel } from "./msigTopup";
 import { clientsTopup_v2 } from "./clientTopup_v2";
 
 
