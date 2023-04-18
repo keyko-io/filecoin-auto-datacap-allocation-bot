@@ -87,7 +87,7 @@ export const msigTopup = async () => {
                     owner: config.githubLDNOwner,
                     repo: config.githubNotaryRepo,
                     issue_number: issueNumber,
-                    labels: [ISSUE_LABELS.BOT_READY_TO_SIGN, "Notary Application"],
+                    labels: [ISSUE_LABELS.READY_TO_SIGN, "Notary Application"],
                 });
             }
 
@@ -214,7 +214,7 @@ export const exceptionMsigTopup = async () => {
                                 owner: config.githubLDNOwner,
                                 repo: config.githubNotaryRepo,
                                 issue_number: issueNumber,
-                                labels: [ISSUE_LABELS.BOT_READY_TO_SIGN, "Notary Application"],
+                                labels: [ISSUE_LABELS.READY_TO_SIGN, "Notary Application"],
                             });
                         }
 
@@ -247,7 +247,7 @@ export const addVerifiedClientLabel = async () => {
         owner: config.githubLDNOwner,
         repo: config.githubLDNRepo,
         state: "open",
-        labels: ISSUE_LABELS.BOT_READY_TO_SIGN
+        labels: ISSUE_LABELS.READY_TO_SIGN
     });
     console.log("allIssues", allIssues.map((i: any) => i.number))
     const toChange = []
