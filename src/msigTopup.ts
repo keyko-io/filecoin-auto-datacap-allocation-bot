@@ -7,8 +7,8 @@ import { checkLabel } from "./utils";
 import OctokitInitializer from "./initializers/OctokitInitializer";
 import ApiInitializer from "./initializers/ApiInitializer";
 import { V3Exception } from "./types/types"
-import { LABELS } from "./labels";
-import { ISSUE_LABELS } from "filecoin-verfier-common";
+import fvc from "filecoin-verfier-common"
+const { ISSUE_LABELS } = fvc
 
 
 
@@ -87,7 +87,7 @@ export const msigTopup = async () => {
                     owner: config.githubLDNOwner,
                     repo: config.githubNotaryRepo,
                     issue_number: issueNumber,
-                    labels: [LABELS.READY_TO_SIGN, "Notary Application"],
+                    labels: [ISSUE_LABELS.BOT_READY_TO_SIGN, "Notary Application"],
                 });
             }
 
@@ -214,7 +214,7 @@ export const exceptionMsigTopup = async () => {
                                 owner: config.githubLDNOwner,
                                 repo: config.githubNotaryRepo,
                                 issue_number: issueNumber,
-                                labels: [LABELS.READY_TO_SIGN, "Notary Application"],
+                                labels: [ISSUE_LABELS.BOT_READY_TO_SIGN, "Notary Application"],
                             });
                         }
 

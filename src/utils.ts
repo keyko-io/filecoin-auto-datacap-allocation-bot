@@ -3,7 +3,8 @@ import { logDebug, logGeneral } from './logger/consoleLogger'
 import { config } from './config'
 import axios from 'axios'
 import { DmobClient } from './types/types_clientTopup'
-import { LABELS } from './labels'
+import fvc from "filecoin-verfier-common"
+const { ISSUE_LABELS } = fvc
 
 const byteConverter = new ByteConverter()
 const owner = config.githubLDNOwner;
@@ -68,35 +69,35 @@ export const checkLabel = (issue: any) => {
   }
 
 
-  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === LABELS.READY_TO_SIGN.toLowerCase().replace(/ /g, ''))) {
-    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LABELS.READY_TO_SIGN} is present`);
+  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === ISSUE_LABELS.BOT_READY_TO_SIGN.toLowerCase().replace(/ /g, ''))) {
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${ISSUE_LABELS.BOT_READY_TO_SIGN} is present`);
     iss.skip = true
-    iss.label = LABELS.READY_TO_SIGN
+    iss.label = ISSUE_LABELS.BOT_READY_TO_SIGN
     return iss
   }
   if (
-    issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === LABELS.WAITING_FOR_CLIENT_REPLY.toLowerCase().replace(/ /g, ''))) {
-    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LABELS.WAITING_FOR_CLIENT_REPLY} is present`);
+    issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === ISSUE_LABELS.WAITING_FOR_CLIENT_REPLY.toLowerCase().replace(/ /g, ''))) {
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${ISSUE_LABELS.WAITING_FOR_CLIENT_REPLY} is present`);
     iss.skip = true
-    iss.label = LABELS.WAITING_FOR_CLIENT_REPLY
+    iss.label = ISSUE_LABELS.WAITING_FOR_CLIENT_REPLY
     return iss
   }
-  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === LABELS.ERROR.toLowerCase().replace(/ /g, ''))) {
-    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LABELS.ERROR} is present`);
+  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === ISSUE_LABELS.ERROR.toLowerCase().replace(/ /g, ''))) {
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${ISSUE_LABELS.ERROR} is present`);
     iss.skip = true
-    iss.label = LABELS.ERROR
+    iss.label = ISSUE_LABELS.ERROR
     return iss
   }
-  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === LABELS.TOTAL_DC_REACHED.toLowerCase().replace(/ /g, ''))) {
-    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LABELS.TOTAL_DC_REACHED} is present`);
+  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === ISSUE_LABELS.TOTAL_DC_REACHED.toLowerCase().replace(/ /g, ''))) {
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${ISSUE_LABELS.TOTAL_DC_REACHED} is present`);
     iss.skip = true
-    iss.label = LABELS.TOTAL_DC_REACHED
+    iss.label = ISSUE_LABELS.TOTAL_DC_REACHED
     return iss
   }
-  if (!issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === LABELS.VERIFIED_CLIENT.toLowerCase().replace(/ /g, ''))) {
-    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LABELS.VERIFIED_CLIENT} is missing, the issue still need to get the 1st round of datacap`);
+  if (!issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === ISSUE_LABELS.VERIFIED_CLIENT.toLowerCase().replace(/ /g, ''))) {
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${ISSUE_LABELS.VERIFIED_CLIENT} is missing, the issue still need to get the 1st round of datacap`);
     iss.skip = true
-    iss.label = LABELS.VERIFIED_CLIENT
+    iss.label = ISSUE_LABELS.VERIFIED_CLIENT
     return iss
   }
 

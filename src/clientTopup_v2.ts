@@ -13,7 +13,8 @@ import { callMetricsApi } from "@keyko-io/filecoin-verifier-tools/lib/metrics/me
 import { v4 as uuidv4 } from 'uuid';
 import { AllowanceArrayElement, DmobClient } from "./types/types_clientTopup";
 import { ParsedData } from "@keyko-io/filecoin-verifier-tools/lib/utils/ldn-parser-functions/parseApprovedRequestWithSignerAddress";
-import { LABELS } from "./labels";
+import fvc from "filecoin-verfier-common"
+const { ISSUE_LABELS } = fvc
 
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
@@ -266,7 +267,7 @@ export const postRequestComments = async (issuesAndNextRequest: any[]) => {
               owner,
               repo,
               issue_number: elem.number,
-              labels: [LABELS.TOTAL_DC_REACHED],
+              labels: [ISSUE_LABELS.TOTAL_DC_REACHED],
             });
             logGeneral(`${config.logPrefix} ${elem.number}, posted close request comment.`)
             resolve({ res, issue_number: elem.number })
@@ -307,7 +308,7 @@ export const postRequestComments = async (issuesAndNextRequest: any[]) => {
               owner,
               repo,
               issue_number: elem.number,
-              labels: [LABELS.READY_TO_SIGN, LABELS.VERIFIED_CLIENT],
+              labels: [ISSUE_LABELS.BOT_READY_TO_SIGN, ISSUE_LABELS.VERIFIED_CLIENT],
             });
 
             //metrics
