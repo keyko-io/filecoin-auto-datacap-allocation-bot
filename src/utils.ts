@@ -69,10 +69,10 @@ export const checkLabel = (issue: any) => {
   }
 
 
-  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === ISSUE_LABELS.BOT_READY_TO_SIGN.toLowerCase().replace(/ /g, ''))) {
-    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${ISSUE_LABELS.BOT_READY_TO_SIGN} is present`);
+  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === ISSUE_LABELS.READY_TO_SIGN.toLowerCase().replace(/ /g, ''))) {
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${ISSUE_LABELS.READY_TO_SIGN} is present`);
     iss.skip = true
-    iss.label = ISSUE_LABELS.BOT_READY_TO_SIGN
+    iss.label = ISSUE_LABELS.READY_TO_SIGN
     return iss
   }
   if (
