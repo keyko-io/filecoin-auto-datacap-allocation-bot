@@ -7,22 +7,19 @@ import { checkLabel } from "./utils";
 import OctokitInitializer from "./initializers/OctokitInitializer";
 import ApiInitializer from "./initializers/ApiInitializer";
 import { V3Exception } from "./types/types"
+import { LABELS } from "./labels";
+import { ISSUE_LABELS } from "filecoin-verfier-common";
 
 
 
 const api = ApiInitializer.getInstance()
 const octokit = OctokitInitializer.getInstance()
 const exceptions = config.exceptionJson
-console.log('exceptions', exceptions)
 
 
 export const msigTopup = async () => {
     try {
         logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot started - check V3 multisig address DataCap`);
-        //Steps:
-
-
-
 
         // use env var to store the issue number of the V3 msig
         // vars with BASELINE means that this is the base datacap to be assignes. 
@@ -47,19 +44,14 @@ export const msigTopup = async () => {
         // get datacap remaining and parse from b to tib
         // use getAllowanceForAddress
         let dataCapRemainingBytes: number = 0
-        // if (config.networkType !== "test") {
-            const v3MultisigAllowance = await axios({
-                method: "GET",
-                url: `${config.filpusApi}/getAllowanceForAddress/${address}`,
-                headers: {
-                    "x-api-key": config.filplusApiKey,
-                },
-            });
-            dataCapRemainingBytes = v3MultisigAllowance.data.allowance as number
-        // }
-        // else {
-        //     dataCapRemainingBytes = await api.checkVerifier(address).datacap as number
-        // }
+        const v3MultisigAllowance = await axios({
+            method: "GET",
+            url: `${config.filpusApi}/getAllowanceForAddress/${address}`,
+            headers: {
+                "x-api-key": config.filplusApiKey,
+            },
+        });
+        dataCapRemainingBytes = v3MultisigAllowance.data.allowance as number
 
         // calculate margin ( dc remaining / 25PiB) --> remember to convert to bytes first
         let margin = 0
@@ -84,35 +76,22 @@ export const msigTopup = async () => {
                 issue_number: issueNumber,
                 body
             })
-            await octokit.issues.addLabels({
+            const removeAllLabels = await octokit.issues.removeAllLabels({
                 owner: config.githubLDNOwner,
                 repo: config.githubNotaryRepo,
                 issue_number: issueNumber,
-                labels: ["status:Approved", "status:dcRequestPosted"],
-            });
 
-
-            //check all the labels, if addedOnChain exist remove it
-            const issueContent = await octokit.rest.issues.get({
-                owner: config.githubLDNOwner,
-                repo: config.githubNotaryRepo,
-                issue_number: issueNumber,
-            });
-
-            const allLabels = issueContent.data.labels
-
-            const addedOnchainExist = allLabels.find((item: any) => item.name === "status:AddedOnchain")
-
-            if (addedOnchainExist) {
-                await octokit.rest.issues.removeLabel({
+            })
+            if (removeAllLabels) {
+                await octokit.issues.addLabels({
                     owner: config.githubLDNOwner,
                     repo: config.githubNotaryRepo,
                     issue_number: issueNumber,
-                    name: "status:AddedOnchain"
+                    labels: [LABELS.READY_TO_SIGN, "Notary Application"],
                 });
             }
 
-            logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot dc request for v3 msig triggered. issue #557`);
+            logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot dc request for v3 msig triggered. issue ${config.v3MultisigIssueNumber}`);
             return createAllocationComment
         } else {
             logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot dc request for v3 msig not triggered. DataCap remaining is: ${bytesToiB(dataCapRemainingBytes)}.`);
@@ -197,19 +176,14 @@ export const exceptionMsigTopup = async () => {
                     // use getAllowanceForAddress
 
                     let dataCapRemainingBytes = 0
-                    // if (config.networkType !== "test") {
-                        const v3MultisigAllowance = await axios({
-                            method: "GET",
-                            url: `${config.filpusApi}/getAllowanceForAddress/${address}`,
-                            headers: {
-                                "x-api-key": config.filplusApiKey,
-                            },
-                        });
-                        dataCapRemainingBytes = v3MultisigAllowance.data.allowance
-                    // }
-                    // else {
-                    //     dataCapRemainingBytes = (await api.checkVerifier(address)).datacap
-                    // }
+                    const v3MultisigAllowance = await axios({
+                        method: "GET",
+                        url: `${config.filpusApi}/getAllowanceForAddress/${address}`,
+                        headers: {
+                            "x-api-key": config.filplusApiKey,
+                        },
+                    });
+                    dataCapRemainingBytes = v3MultisigAllowance.data.allowance
 
                     dataCapRemainingBytes = dataCapRemainingBytes ? dataCapRemainingBytes : 0
 
@@ -229,13 +203,21 @@ export const exceptionMsigTopup = async () => {
                             issue_number: issueNumber,
                             body
                         });
-
-                        await octokit.issues.addLabels({
+                        const removeAllLabels = await octokit.issues.removeAllLabels({
                             owner: config.githubLDNOwner,
                             repo: config.githubNotaryRepo,
                             issue_number: issueNumber,
-                            labels: ["status:Approved", "status:dcRequestPosted"],
-                        });
+
+                        })
+                        if (removeAllLabels) {
+                            await octokit.issues.addLabels({
+                                owner: config.githubLDNOwner,
+                                repo: config.githubNotaryRepo,
+                                issue_number: issueNumber,
+                                labels: [LABELS.READY_TO_SIGN, "Notary Application"],
+                            });
+                        }
+
 
                         logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot posted dc request for v3 specific multisig triggered. Address ${address}, issue #${issueNumber}`);
 
@@ -255,6 +237,61 @@ export const exceptionMsigTopup = async () => {
             }
         ))
     )
+
+
+}
+
+export const addVerifiedClientLabel = async () => {
+
+    const allIssues = await octokit.paginate(octokit.issues.listForRepo, {
+        owner: config.githubLDNOwner,
+        repo: config.githubLDNRepo,
+        state: "open",
+        labels: ISSUE_LABELS.BOT_READY_TO_SIGN
+    });
+    console.log("allIssues", allIssues.map((i: any) => i.number))
+    const toChange = []
+    for (let issue of allIssues) {
+        // console.log(issue)
+
+
+        const prom = new Promise(async (resolve, reject) => {
+            try {
+                const allComments = await octokit.paginate(
+                    octokit.issues.listComments,
+                    {
+                        owner: config.githubLDNOwner,
+                        repo: config.githubLDNRepo,
+                        issue_number: issue.number,
+                    })
+                const filtered = allComments.filter((c: any) => c.body.startsWith("## Request Approved"))
+                // resolve(filtered.length >0)
+                if (filtered.length > 0) {
+                    await octokit.issues.addLabels({
+                        owner: config.githubLDNOwner,
+                        repo: config.githubLDNRepo,
+                        issue_number: issue.number,
+                        labels: [ISSUE_LABELS.VERIFIED_CLIENT]
+                    })
+                }
+            } catch (error) {
+                reject(error)
+            }
+        })
+        toChange.push(prom)
+        // const prom = new Promise(async (resolve, reject) => {
+        //     resolve(await octokit.issues.addLabels({
+        //         owner: config.githubLDNOwner,
+        //         repo: config.githubLDNRepo,
+        //         issue_number: issue.number,
+        //         labels: [ISSUE_LABELS.VERIFIED_CLIENT]
+        //     }))
+        // })
+        // promArr.push(prom)
+    }
+    // console.log("verified filtered", verified, verified.length)
+    // console.log("readyToSign filtered", readyToSign, readyToSign.length)
+    console.log("PROMS", await Promise.allSettled(toChange))
 
 
 }

@@ -9,7 +9,7 @@ const octokit = OctokitInitializer.getInstance();
 
 const ISSUE_NUMBER = parseInt(process.env.HEALTH_CEHECK_ISSUE) || 1407;
 
-export const createHealthCheckComment = async (issueCommented?: number) => {
+export const createHealthCheckComment = async (issueCommented?: number, issueNumbers?:any[]) => {
   const now = new Date();
 
   try {
@@ -19,6 +19,7 @@ export const createHealthCheckComment = async (issueCommented?: number) => {
       issue_number: ISSUE_NUMBER,
       body: `SSA bot ran at ${date.format(now, "YYYY/MM/DD HH:mm", true)} UTC
              SSA bot issues commented: ${issueCommented || 0}
+             SSA bot issue numbers: ${issueNumbers || "none"}
       `,
     });
 

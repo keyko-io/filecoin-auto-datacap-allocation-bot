@@ -13,6 +13,7 @@ import { callMetricsApi } from "@keyko-io/filecoin-verifier-tools/lib/metrics/me
 import { v4 as uuidv4 } from 'uuid';
 import { AllowanceArrayElement, DmobClient } from "./types/types_clientTopup";
 import { ParsedData } from "@keyko-io/filecoin-verifier-tools/lib/utils/ldn-parser-functions/parseApprovedRequestWithSignerAddress";
+import { LABELS } from "./labels";
 
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
@@ -53,7 +54,7 @@ export const clientsTopup_v2 = async () => {
 
     const issueCommented = postRequestz.length ? postRequestz.length : 0
 
-    await createHealthCheckComment(issueCommented);
+    await createHealthCheckComment(issueCommented,postRequestz.map((i: any) => i.issue_number));
 
     logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot ended.`);
     logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot issues commented: ${issueCommented}`)
@@ -265,7 +266,7 @@ export const postRequestComments = async (issuesAndNextRequest: any[]) => {
               owner,
               repo,
               issue_number: elem.number,
-              labels: ["issue:TotalDcReached"],
+              labels: [LABELS.TOTAL_DC_REACHED],
             });
             logGeneral(`${config.logPrefix} ${elem.number}, posted close request comment.`)
             resolve({ res, issue_number: elem.number })
@@ -306,7 +307,7 @@ export const postRequestComments = async (issuesAndNextRequest: any[]) => {
               owner,
               repo,
               issue_number: elem.number,
-              labels: ["bot:readyToSign", "state:Approved"],
+              labels: [LABELS.READY_TO_SIGN, LABELS.VERIFIED_CLIENT],
             });
 
             //metrics

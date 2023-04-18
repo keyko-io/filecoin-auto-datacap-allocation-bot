@@ -1,12 +1,13 @@
 import ByteConverter from '@wtfcode/byte-converter'
 import { logDebug, logGeneral } from './logger/consoleLogger'
 import { config } from './config'
-import axios from 'axios';
-import { DmobClient } from './types/types_clientTopup';
+import axios from 'axios'
+import { DmobClient } from './types/types_clientTopup'
+import { LABELS } from './labels'
+
 const byteConverter = new ByteConverter()
 const owner = config.githubLDNOwner;
 const repo = config.githubLDNRepo;
-
 
 export const matchGroup = (regex, content) => {
   let m
@@ -57,17 +58,6 @@ export function bytesToB(inputBytes: number) {
   return `${Number.isInteger(autoscale.value) ? autoscale.value : autoscale.value.toFixed(1)}${autoscale.dataFormat}`
 }
 
-enum LabelsEnum {
-  READY_TO_SIGN = "bot:readyToSign",
-  NEED_DILIGENCE = "status:needsDiligence",
-  ERROR = "status:Error",
-  TOTAL_DC_REACHED = "issue:TotalDcReached",
-  STATUS_APPROVED = "status:Approved",
-  STATUS_START_SIGN_ON_CHAIN = "status:StartSignOnchain",
-  STATUS_VERIFYING = "status:Verifying",
-  STATUS_DC_REQUEST_POSTED = "status:dcRequestPosted",
-  BOT_REVIEW_NEEDED = "bot:reviewNeeded"
-}
 
 export const checkLabel = (issue: any) => {
 
@@ -77,47 +67,36 @@ export const checkLabel = (issue: any) => {
     skip: false
   }
 
-  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LabelsEnum.READY_TO_SIGN.toLowerCase().replace(/ /g,''))) {
-    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LabelsEnum.READY_TO_SIGN} is present`);
+
+  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === LABELS.READY_TO_SIGN.toLowerCase().replace(/ /g, ''))) {
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LABELS.READY_TO_SIGN} is present`);
     iss.skip = true
-    iss.label = LabelsEnum.READY_TO_SIGN
+    iss.label = LABELS.READY_TO_SIGN
     return iss
   }
   if (
-    issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LabelsEnum.NEED_DILIGENCE.toLowerCase().replace(/ /g,''))) {
-    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LabelsEnum.NEED_DILIGENCE} is present`);
+    issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === LABELS.WAITING_FOR_CLIENT_REPLY.toLowerCase().replace(/ /g, ''))) {
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LABELS.WAITING_FOR_CLIENT_REPLY} is present`);
     iss.skip = true
-    iss.label = LabelsEnum.NEED_DILIGENCE
+    iss.label = LABELS.WAITING_FOR_CLIENT_REPLY
     return iss
   }
-  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LabelsEnum.ERROR.toLowerCase().replace(/ /g,''))) {
-    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LabelsEnum.ERROR} is present`);
+  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === LABELS.ERROR.toLowerCase().replace(/ /g, ''))) {
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LABELS.ERROR} is present`);
     iss.skip = true
-    iss.label = LabelsEnum.ERROR
+    iss.label = LABELS.ERROR
     return iss
   }
-  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LabelsEnum.TOTAL_DC_REACHED.toLowerCase().replace(/ /g,''))) {
-    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LabelsEnum.TOTAL_DC_REACHED} is present`);
+  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === LABELS.TOTAL_DC_REACHED.toLowerCase().replace(/ /g, ''))) {
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LABELS.TOTAL_DC_REACHED} is present`);
     iss.skip = true
-    iss.label = LabelsEnum.TOTAL_DC_REACHED
+    iss.label = LABELS.TOTAL_DC_REACHED
     return iss
   }
-  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LabelsEnum.STATUS_DC_REQUEST_POSTED.toLowerCase().replace(/ /g,'')) || issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LabelsEnum.STATUS_START_SIGN_ON_CHAIN.toLowerCase().replace(/ /g,''))) {
-    logGeneral(`${config.logPrefix} ${issue.number} skipped --> V3 Msig started the RKH signature round.`);
+  if (!issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === LABELS.VERIFIED_CLIENT.toLowerCase().replace(/ /g, ''))) {
+    logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${LABELS.VERIFIED_CLIENT} is missing, the issue still need to get the 1st round of datacap`);
     iss.skip = true
-    iss.label = LabelsEnum.STATUS_APPROVED
-    return iss
-  }
-  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LabelsEnum.STATUS_VERIFYING.toLowerCase().replace(/ /g,''))) {
-    logGeneral(`${config.logPrefix} ${issue.number} skipped --> Issue is still in verifying phase.`);
-    iss.skip = true
-    iss.label = LabelsEnum.STATUS_VERIFYING
-    return iss
-  }
-  if (issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g,'') === LabelsEnum.BOT_REVIEW_NEEDED.toLowerCase().replace(/ /g,'')) ) {
-    logGeneral(`${config.logPrefix} ${issue.number} skipped --> issue need review`);
-    iss.skip = true
-    iss.label = LabelsEnum.BOT_REVIEW_NEEDED
+    iss.label = LABELS.VERIFIED_CLIENT
     return iss
   }
 
@@ -169,15 +148,15 @@ export const commentsForEachIssue = async (octokit: any, rawIssues: any) => {
 
 export const findClient = (apiClients: any, address: any) => {
   const clientArr = apiClients.data.data.filter((item: any) => item.address === address)
-//So initial allowance is the sum of the allowances so far
-//Allowance is the remaining datacap
+  //So initial allowance is the sum of the allowances so far
+  //Allowance is the remaining datacap
   let client: DmobClient
   if (clientArr.length == 1) {
     client = clientArr[0]
   }
   else {
     client = clientArr[0]
-    for (let i = 1; i< clientArr.length; i++){
+    for (let i = 1; i < clientArr.length; i++) {
       client.allowanceArray = [...client.allowanceArray, ...clientArr[i].allowanceArray]
     }
     client
