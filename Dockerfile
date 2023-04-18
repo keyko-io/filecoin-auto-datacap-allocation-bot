@@ -26,7 +26,7 @@ RUN npm install
 COPY . .
 
 # Build server
-RUN npm run build
+RUN tsc
 
 # Expose listen port
 EXPOSE 3000
