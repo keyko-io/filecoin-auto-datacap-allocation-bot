@@ -18,7 +18,7 @@ RUN git init
 RUN git submodule init 
 RUN git submodule update --recursive --remote
 
-ARG TS_VERSION=4.4.3
+ARG TS_VERSION=4.9.4
 RUN npm install
 RUN npm install typescript@${TS_VERSION}
 
