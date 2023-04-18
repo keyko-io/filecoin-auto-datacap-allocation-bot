@@ -11,16 +11,15 @@ RUN apk add --no-cache --update \
 WORKDIR /server
 
 # Install app dependencies
-COPY package.json ./
+COPY package*.json ./
 COPY .gitmodules ./
 COPY /deps ./deps
 RUN git init
 RUN git submodule init 
 RUN git submodule update --recursive --remote
 
-ARG TS_VERSION=4.9.4
 RUN npm install
-RUN npm install typescript@${TS_VERSION}
+
 
 
 # Bundle app source
