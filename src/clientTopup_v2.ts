@@ -308,7 +308,7 @@ export const postRequestComments = async (issuesAndNextRequest: any[]) => {
               owner,
               repo,
               issue_number: elem.number,
-              labels: [ISSUE_LABELS.BOT_READY_TO_SIGN, ISSUE_LABELS.VERIFIED_CLIENT],
+              labels: [ISSUE_LABELS.READY_TO_SIGN, ISSUE_LABELS.VERIFIED_CLIENT],
             });
 
             //metrics
