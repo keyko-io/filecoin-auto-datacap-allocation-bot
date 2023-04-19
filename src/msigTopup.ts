@@ -76,13 +76,14 @@ export const msigTopup = async () => {
                 issue_number: issueNumber,
                 body
             })
-            const removeAllLabels = await octokit.issues.removeAllLabels({
+            const removeGrantedLAbel = await octokit.issues.removeLabel({
                 owner: config.githubLDNOwner,
                 repo: config.githubNotaryRepo,
                 issue_number: issueNumber,
+                name:ISSUE_LABELS.GRANTED
 
             })
-            if (removeAllLabels) {
+            if (removeGrantedLAbel) {
                 await octokit.issues.addLabels({
                     owner: config.githubLDNOwner,
                     repo: config.githubNotaryRepo,
@@ -203,13 +204,14 @@ export const exceptionMsigTopup = async () => {
                             issue_number: issueNumber,
                             body
                         });
-                        const removeAllLabels = await octokit.issues.removeAllLabels({
+                        const removeGrantedLabel = await octokit.issues.removeLabel({
                             owner: config.githubLDNOwner,
                             repo: config.githubNotaryRepo,
                             issue_number: issueNumber,
+                            name: ISSUE_LABELS.GRANTED
 
                         })
-                        if (removeAllLabels) {
+                        if (removeGrantedLabel) {
                             await octokit.issues.addLabels({
                                 owner: config.githubLDNOwner,
                                 repo: config.githubNotaryRepo,
