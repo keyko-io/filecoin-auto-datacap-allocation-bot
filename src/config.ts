@@ -24,9 +24,9 @@ export const config = {
     logPrefix: "Issue number",
     v3MultisigAddress: process.env.V3_MULTISIG_ADDRESS || 't01003',
     v3MultisigIssueNumber: parseInt(process.env.V3_MULTISIG_ISSUE_NUMBER) || 479,
-    v3MultisigDatacapAllowance: '25PiB',
+    v3MultisigDatacapAllowance: '100PiB',
     v3MarginComparisonPercentage: 0.25,
-    v3MultisigDatacapAllowanceBytes: 28147497671065600,
+    v3MultisigDatacapAllowanceBytes: 112589990684262350,
     exceptionJson: process.env.NODE_ENV == 'test' ? v3_exception_test : v3_exception_prod,
     lotus_node_token:process.env.NODE_ENV == 'test' ? null : process.env.LOTUS_NODE_TOKEN
 }
