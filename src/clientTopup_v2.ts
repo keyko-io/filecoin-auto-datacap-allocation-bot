@@ -298,10 +298,11 @@ export const postRequestComments = async (issuesAndNextRequest: any[]) => {
 
           if (res.commentResult.status === 201) {
 
-            res.removeLabels = await octokit.issues.removeAllLabels({
+            res.removeLabels = await octokit.issues.removeLabel({
               owner,
               repo,
               issue_number: elem.number,
+              name: ISSUE_LABELS.GRANTED
             });
 
             res.addLabels = await octokit.issues.addLabels({
