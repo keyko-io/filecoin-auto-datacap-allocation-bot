@@ -1,7 +1,7 @@
 import { config } from "./config";
-import { bytesToiB, anyToBytes, findClient, getApiClients, getDeltaDcAndDcGranted,  calculateAllocationToRequest, getRemainingDataCap } from "./utils";
+import { bytesToiB, anyToBytes, findClient, getApiClients, getDeltaDcAndDcGranted, calculateAllocationToRequest, getRemainingDataCap } from "./utils";
 import { newAllocationRequestComment_V2, statsComment_v2 } from "./comments";
-import { parseIssue, parseApprovedRequestWithSignerAddress} from '@keyko-io/filecoin-verifier-tools/lib/utils/large-issue-parser';
+import { parseIssue, parseApprovedRequestWithSignerAddress } from '@keyko-io/filecoin-verifier-tools/lib/utils/large-issue-parser';
 import { EVENT_TYPE, MetricsApiParams } from "./Metrics";
 import { logGeneral, logWarn, logDebug, logError } from './logger/consoleLogger'
 import { checkLabel } from "./utils";
@@ -55,7 +55,7 @@ export const clientsTopup_v2 = async () => {
 
     const issueCommented = postRequestz.length ? postRequestz.length : 0
 
-    await createHealthCheckComment(issueCommented,postRequestz.map((i: any) => i.issue_number));
+    await createHealthCheckComment(issueCommented, postRequestz.map((i: any) => i.issue_number));
 
     logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot ended.`);
     logGeneral(`${config.logPrefix} 0 Subsequent-Allocation-Bot issues commented: ${issueCommented}`)
@@ -137,7 +137,6 @@ export const matchGithubAndNodeClients = (issues: any[], apiClients: any) => {
 
   for (let i of parsedIssues) {
     const dmobClient: DmobClient | boolean = findClient(apiClients, i.parsed.address)
-
     if (dmobClient) {
       match.push(
         {
@@ -222,10 +221,15 @@ export const checkPostNewRequest = async (issuesAndComments: any[]) => {
   const issues = issuesWithRemainingDc.filter((i: any) => i.status == 'fulfilled').map((i: any) => i.value)
 
   for (let issue of issues) {
-    if (issue.lastRequest && issue.remainingDatacap) {
+    if (issue.lastRequest) {
       let margin = 0
       const last = parseInt(issue.lastRequest.allowance)
-      const remaining = parseInt(issue.remainingDatacap)
+      let remaining;
+      if (issue.remainingDatacap) {
+        remaining = parseInt(issue.remainingDatacap)
+      } else {
+        remaining = 1
+      }
 
       if (remaining && last)
         margin = remaining / last
