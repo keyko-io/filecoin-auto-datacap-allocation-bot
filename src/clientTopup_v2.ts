@@ -161,9 +161,7 @@ export const matchIssuesAndRequests = async (match: any[]) => {
   const issuesAndRequests = match.map((issue: any) => {
     const requests = issue.allowanceArray
 
-    const lastRequest = requests[0]
-
-    // issue.comments = comments
+    const lastRequest = requests.filter((request: AllowanceArrayElement) => request.isLdnAllowance)[0]
     issue.numberOfRequests = requests.length
     issue.lastRequest = lastRequest
     issue.requests = requests
