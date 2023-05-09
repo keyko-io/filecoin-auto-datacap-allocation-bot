@@ -35,7 +35,7 @@ export const msigTopup = async () => {
             issue_number: issueNumber,
         });
 
-        if (checkLabel(issue.data).skip) {
+        if (checkLabel(issue.data, true).skip) {
             return false
         }
 
@@ -168,7 +168,7 @@ export const exceptionMsigTopup = async () => {
                         issue_number: issueNumber,
                     });
 
-                    if (checkLabel(issue.data).skip) {
+                    if (checkLabel(issue.data, true).skip) {
                         resolve(false)
                         return
                     }

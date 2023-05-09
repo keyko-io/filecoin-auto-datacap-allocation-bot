@@ -60,7 +60,7 @@ export function bytesToB(inputBytes: number) {
 }
 
 
-export const checkLabel = (issue: any) => {
+export const checkLabel = (issue: any, isMsig?:boolean) => {
 
   let iss = {
     number: issue.number,
@@ -94,7 +94,8 @@ export const checkLabel = (issue: any) => {
     iss.label = ISSUE_LABELS.TOTAL_DC_REACHED
     return iss
   }
-  if (!issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === ISSUE_LABELS.VERIFIED_CLIENT.toLowerCase().replace(/ /g, ''))) {
+
+  if (!issue.labels.find((item: any) => item.name.toLowerCase().replace(/ /g, '') === ISSUE_LABELS.VERIFIED_CLIENT.toLowerCase().replace(/ /g, '')) && !isMsig) {
     logGeneral(`${config.logPrefix} ${issue.number} skipped --> ${ISSUE_LABELS.VERIFIED_CLIENT} is missing, the issue still need to get the 1st round of datacap`);
     iss.skip = true
     iss.label = ISSUE_LABELS.VERIFIED_CLIENT
