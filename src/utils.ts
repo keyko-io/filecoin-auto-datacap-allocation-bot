@@ -252,28 +252,28 @@ export const calculateAllocationToRequest = (
       nextRequest = condition ? weeklyDcAllocationBytes / 2 : totaldDcRequestedByClient * 0.05;
       rule = condition ? `50% of weekly dc amount requested` : `5% of total dc amount requested`
       break;
-    case 1: //2nd req - 100% of the amount in the issue
-      condition = weeklyDcAllocationBytes <= totaldDcRequestedByClient * 0.1
-      nextRequest = condition ? weeklyDcAllocationBytes : totaldDcRequestedByClient * 0.1;
-      rule = condition ? `100% of weekly dc amount requested` : `10% of total dc amount requested`
+    case 1: //lesser of 100% of weekly allocation rate or 0.5PiB 
+      condition = weeklyDcAllocationBytes <= config.HALF_PIB 
+      nextRequest = condition ? weeklyDcAllocationBytes : config.HALF_PIB;
+      rule = condition ? `100% of weekly dc amount requested` : `100% weekly > 0.5PiB, requesting 0.5PiB`
       break;
-    case 2: //3rd req - 200% of the amount in the issue
-      condition = weeklyDcAllocationBytes * 2 <= totaldDcRequestedByClient * 0.2
-      nextRequest = condition ? weeklyDcAllocationBytes * 2 : totaldDcRequestedByClient * 0.2;
-      rule = condition ? `200% of weekly dc amount requested` : `20% of total dc amount requested`
+    case 2: //lesser of 200% of weekly allocation rate or 1PiB 
+      condition = weeklyDcAllocationBytes * 2 <= config.ONE_PIB 
+      nextRequest = condition ? weeklyDcAllocationBytes * 2 : config.ONE_PIB;
+      rule = condition ? `200% of weekly dc amount requested` : `200% weekly > 1PiB, requesting 1PiB`
       break;
-    case 3: //4th req - 400% of the amount in the issue
-      condition = weeklyDcAllocationBytes * 4 <= totaldDcRequestedByClient * 0.4
-      nextRequest = condition ? weeklyDcAllocationBytes * 4 : totaldDcRequestedByClient * 0.4;
-      rule = condition ? `400% of weekly dc amount requested` : `40% of total dc amount requested`
+    default: //lesser of 400% of weekly allocation rate or 2PiB 
+      condition = weeklyDcAllocationBytes * 4 <= config.TWO_PIB  
+      nextRequest = condition ? weeklyDcAllocationBytes * 4 : config.TWO_PIB;
+      rule = condition ? `400% of weekly dc amount requested` : `400% weekly > 2PiB, requesting 2PiB`
       break;
 
-    default:
-      //5th req on - 800% of the amount in the issue
-      condition = weeklyDcAllocationBytes * 8 <= totaldDcRequestedByClient * 0.8
-      nextRequest = condition ? weeklyDcAllocationBytes * 8 : totaldDcRequestedByClient * 0.8;
-      rule = condition ? `800% of weekly dc amount requested` : `80% of total dc amount requested`
-      break;
+    // default: old version
+    //   //5th req on - 800% of the amount in the issue
+    //   condition = weeklyDcAllocationBytes * 8 <= totaldDcRequestedByClient * 0.8
+    //   nextRequest = condition ? weeklyDcAllocationBytes * 8 : totaldDcRequestedByClient * 0.8;
+    //   rule = condition ? `800% of weekly dc amount requested` : `80% of total dc amount requested`
+    //   break;
   }
 
 
