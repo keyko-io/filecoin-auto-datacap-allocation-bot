@@ -28,5 +28,8 @@ export const config = {
     v3MarginComparisonPercentage: 0.25,
     v3MultisigDatacapAllowanceBytes: 112589990684262350,
     exceptionJson: process.env.NODE_ENV == 'test' ? v3_exception_test : v3_exception_prod,
-    lotus_node_token:process.env.NODE_ENV == 'test' ? null : process.env.LOTUS_NODE_TOKEN
+    lotus_node_token:process.env.NODE_ENV == 'test' ? null : process.env.LOTUS_NODE_TOKEN,
+    HALF_PIB:562949953421312,
+    ONE_PIB:1125899906842624,
+    TWO_PIB:2251799813685248
 }
