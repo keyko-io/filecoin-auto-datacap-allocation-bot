@@ -180,7 +180,7 @@ export const getTotalDcGrantedSoFar = (client: any) => {
 }
 
 export const getDeltaDcAndDcGranted = (elem: any, totalDcGrantedForClientSoFar: any) => {
-  return anyToBytes(elem.parsed.datacapRequested) - totalDcGrantedForClientSoFar;
+  return Math.abs(anyToBytes(elem.parsed.datacapRequested) - totalDcGrantedForClientSoFar)
 }
 
 export const getGithubHandlesForAddress = (addresses: string[], notaries: any) => {
