@@ -18,6 +18,9 @@
     "scrape-github": "npm run build && node dist/scrape-github.js",
     "ssa-v3": "NODE_ENV=prod npm run build && node dist/clientTopup_v3.js"
   },
+  "bin": {
+    "ssa-bot": "./dist/cli.js"
+  },
   "author": "Fabrizio, Ivan",
   "license": "ISC",
   "dependencies": {
@@ -28,6 +31,7 @@
     "@octokit/rest": "^18.12.0",
     "@wtfcode/byte-converter": "^1.7.11",
     "axios": "^0.21.4",
+    "commander": "^11.0.0",
     "date-and-time": "^2.4.1",
     "dotenv": "^10.0.0",
     "fetch": "^1.1.0",
