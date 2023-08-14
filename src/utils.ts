@@ -201,7 +201,7 @@ export const getApiClients = async () => {
       method: "GET",
       url: `${config.filpusApi}/getVerifiedClients`,
       headers: {
-        "x-api-key": "5c993a17-7b18-4ead-a8a8-89dad981d87e",
+        "x-api-key": config.filplusApiKey,
       },
     });
   } catch (error) {
@@ -217,7 +217,7 @@ export const getRemainingDataCap = async (address) => {
       method: "GET",
       url: `${config.filpusApi}/getAllowanceForAddress/${address}`,
       headers: {
-        "x-api-key": "5c993a17-7b18-4ead-a8a8-89dad981d87e",
+        "x-api-key": config.filplusApiKey,
       },
     });
     return r.data.allowance
