@@ -31,5 +31,6 @@ export const config = {
     lotus_node_token:process.env.NODE_ENV == 'test' ? null : process.env.LOTUS_NODE_TOKEN,
     HALF_PIB:562949953421312,
     ONE_PIB:1125899906842624,
-    TWO_PIB:2251799813685248
+    TWO_PIB:2251799813685248,
+    healthCheckIssue: Number(process.env.HEALTH_CEHECK_ISSUE) || 1
 }

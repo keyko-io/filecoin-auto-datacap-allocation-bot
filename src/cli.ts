@@ -51,7 +51,7 @@ program
     .command('test-env')
     .description(`Check test env ${config.appId}`)
     .action(async () => {
-      console.log(`If everything is ok, you should see the following appId: ${config.appId}`)
+      console.log(`If everything is ok, you should see the following health check issue: ${config.healthCheckIssue * 2}`)
     });
 
 
