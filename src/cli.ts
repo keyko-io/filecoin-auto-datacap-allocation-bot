@@ -3,6 +3,7 @@
 import { Command } from 'commander';
 import { msigTopup, exceptionMsigTopup } from "./msigTopup";
 import { clientsTopup_v2 } from "./clientTopup_v2";
+import { config } from "./config";
 
 const program = new Command();
 
@@ -45,5 +46,13 @@ program
         process.exit(1);
       }
     });
+
+  program
+    .command('test-env')
+    .description(`Check test env ${config.appId}`)
+    .action(async () => {
+      console.log(`If everything is ok, you should see the following appId: ${config.appId}`)
+    });
+
 
 program.parse(process.argv);
