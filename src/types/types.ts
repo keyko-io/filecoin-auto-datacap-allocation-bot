@@ -1,64 +1,77 @@
-export type SpreadsheetData = {
-    //TODO update verifiet tools
-    issueNumber: string;
-    clientName?: string; //from body
-    clientAddress?: string; //from body
-    msigAddress?: string; //from body
-    totalDataCapRequested?: string; //from body
-    weeklyDataCapRequested?: string; //from body
-    numberOfRequests?: string; //from body
-    status?: string;
-    region?: string; //from body
-    author?: string;
-    title?: string;
-    isOpen?: string;
-    assignee?: string;
-    created_at?: string;
-    updated_at?: string;
-    closed_at?: string;
-};
-
-export type IssueInfo = {
-    issueNumber: number;
-    msigAddress: string;
-    address: string;
-    actorAddress: string;
-    dcAllocationRequested: string;
-    remainingDatacap: string;
-    previousDcAllocated?: string;
-    nDeals?: string;
-    nStorageProviders?: string;
-    verifierAddressId?: string;
-    verifierName?: string;
-    clientName?: string;
-    topProvider?: string;
-    lastTwoSigners?: string[];
-    totalDcGrantedForClientSoFar?: string;
-    totaldDcRequestedByClient?: string;
-    deltaTotalDcAndDatacapGranted?: string;
-    rule?: string;
-};
-
-export interface ParseRequest {
-    approvedMessage: boolean;
-    correct: boolean;
-    address: string;
-    datacap: string;
-    signerAddress: string;
-    message: string;
-    errorMessage: string;
-    errorDetails: string;
+export interface ApiClientsResponse {
+  count: number;
+  data: DmobClient[];
 }
 
-export type V3Exception = {
-    identifier: string;
-    notary_msig: string;
-    notary_msig_datacap: string;
-    notary_msig_issue_number: string;
+export type issue = {
+  number?: number;
+  name: string;
+  region: string;
+  website: string;
+  datacapRequested: string;
+  dataCapWeeklyAllocation: string;
+  address: string;
+  isCustomNotary: string;
+  identifier: string;
+  correct: boolean;
+  errorMessage: string;
+  errorDetails: string;
+  isAddressFormatted: boolean;
+  idAddress?: string,
+  datacap?: string,
+  allowanceArray?: AllowanceArrayElement[]
+  lastRequest?: AllowanceArrayElement
 }
 
-export type NodeClient = {
-    idAddress: string;
-    address: string;
-    datacap: string;
+export type AllowanceArrayElement = { // --> sum of it: total datacap granted so far
+  id: number // 5160,
+  error: string // allocation event not found,
+  height: number // 2705021,
+  msgCID: string //bafy2bzacecjpejuzmxolhrqxgaa4owf7pmob372stq46zgfaf77dkdck6idwi,
+  retries: number// 0,
+  addressId: string // f02041788,
+  allowance: string //109951162777600,
+  auditTrail: string //https://github.com/filecoin-project/filecoin-plus-large-datasets/issues/1538,
+  allowanceTTD: number | null //null,
+  usedAllowance: string // 0,
+  isLdnAllowance: boolean //true,
+  isEFilAllowance: boolean //false,
+  verifierAddressId: string //f02049625,
+  isFromAutoverifier: boolean // false,
+  searchedByProposal: boolean //true,
+  issueCreateTimestamp: number //1673055536,
+  hasRemainingAllowance: boolean //true,
+  createMessageTimestamp: number//1679457030
+}
+
+export type DmobClient = {
+  id: number,
+  addressId: string,
+  address: string,
+  retries: number,
+  auditTrail: string,
+  name: string,
+  orgName: string,
+  region: string,
+  website: string,
+  industry: string,
+  initialAllowance: string // '281474976710656',
+  allowance: string // '304530361155584', -- REMAINING DATACAP
+  verifierAddressId: string, //'f01858410',
+  createdAtHeight: number,
+  issueCreateTimestamp: any,
+  createMessageTimestamp: number //1677829860,
+  verifierName: string //'LDN v3 multisig',
+  dealCount: any //null,
+  providerCount: any // null,
+  topProvider: any //null,
+  receivedDatacapChange: string // '562949953421312',
+  usedDatacapChange: string // '505534830608384',
+  allowanceArray: AllowanceArrayElement[]
+}
+
+export type requestAmount = {
+  amount: number,
+  rule: string,
+  totalDatacapReached: boolean
 }

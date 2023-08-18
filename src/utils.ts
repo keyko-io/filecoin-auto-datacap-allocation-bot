@@ -2,7 +2,8 @@ import ByteConverter from '@wtfcode/byte-converter'
 import { logDebug, logGeneral } from './logger/consoleLogger'
 import { config } from './config'
 import axios from 'axios'
-import { DmobClient } from './types/types_clientTopup'
+//import { DmobClient } from './types.old/types_clientTopup'
+import { DmobClient, ApiClientsResponse } from "./types/types";
 import fvc from "filecoin-verfier-common"
 const { ISSUE_LABELS } = fvc
 
@@ -195,23 +196,27 @@ export const getGithubHandlesForAddress = (addresses: string[], notaries: any) =
  * 
  * @returns the clients from dmob api
  */
-export const getApiClients = async () => {
+export const getApiClients = async (): Promise<DmobClient[]> => {
+  logGeneral(`Requesting clients from dmob api`)
   try {
-    return await axios({
+    const response = await axios({
       method: "GET",
       url: `${config.filpusApi}/getVerifiedClients`,
       headers: {
         "x-api-key": config.filplusApiKey,
       },
     });
+    return response.data.data
   } catch (error) {
     console.log(error)
+    throw new Error(error)
   }
 }
 
 
 // https://api.filplus.d.interplanetary.one/public/api/getAllowanceForAddress/f1ais6zhflnr5izuabqcibedpvbjcurjzybzcnqpa
-export const getRemainingDataCap = async (address) => {
+export const getRemainingDataCap = async (address): Promise<string> => {
+  logGeneral(`Requesting allowance for address ${address}`)
   try {
     const r = await axios({
       method: "GET",
