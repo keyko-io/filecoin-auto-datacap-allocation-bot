@@ -3,7 +3,7 @@
 import { Command } from 'commander';
 import { msigTopup, exceptionMsigTopup } from "./msigTopup";
 import { clientsTopup_v2 } from "./clientTopup_v2";
-import { checkIssueComment } from './checkIssueComment';
+import { checkIssues } from './checkIssues';
 import { config } from "./config";
 
 const program = new Command();
@@ -56,15 +56,11 @@ program
     });
   
   program
-    .command('check-issue-comment')
+    .command('check-issues')
     .description('Check issue details')
-    .option('-n, --issueNumber <number>', 'Issue Number')
-    .option('-i, --issueBody <string>', 'Issue Body')
-    .option('-c, --commentBody <string>', 'Comment Body')
-    .option('-a, --commentAuthor <string>', 'Comment Author')
     .action(async (cmdObj) => {
         try {
-          await checkIssueComment(Number(cmdObj.issueNumber), cmdObj.issueBody, cmdObj.commentBody, cmdObj.commentAuthor)
+          await checkIssues()
         } catch (error) {
           console.error('Error:', error.message)
           process.exit(1)

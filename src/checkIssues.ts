@@ -1,6 +1,6 @@
 import { config } from "./config"
 import { logGeneral, logError } from './logger/consoleLogger'
-import { issue, AllowanceArrayElement, requestAmount } from "./types/types"
+import { issue, AllowanceArrayElement, requestAmount, DmobClient } from "./types/types"
 import { getApiClients, getRemainingDataCap, anyToBytes, calculateAllocationToRequest } from "./utils"
 import { parseIssue } from '@keyko-io/filecoin-verifier-tools/lib/utils/large-issue-parser'
 import { callMetricsApi } from "@keyko-io/filecoin-verifier-tools/lib/metrics/metrics"
@@ -19,21 +19,49 @@ const VERIFIER_ADDRESS_MAP = {
 }
 
 /**
- * Check a GitHub issue comment for specific commands or data.
+ * Check all open GitHub issues for new datacap requests.
+ */
+export const checkIssues = async () => {
+  const apiClients = await getApiClients();
+  const issues = await getAllIssues();
+
+  for (const issue of issues) {
+    
+    const issueNumber = issue.number;
+    const issueBody = issue.body;
+    
+    await checkIssue(issueNumber, issueBody, apiClients);
+  }
+}
+
+/**
+ * 
+ * @returns {Promise<any>}
+ */
+const getAllIssues = async ():Promise<any[]> => {
+  const { data: issues } = await octokit.issues.listForRepo({
+    owner,
+    repo,
+    state: 'open',
+  });
+
+  return issues;
+}
+
+/**
+ * Check a GitHub issue for specific commands or data.
  *
  * @param {number} issueNumber - The number of the GitHub issue.
  * @param {string} issueBody - The main content of the GitHub issue.
- * @param {string} commentBody - The content of the comment made on the issue.
- * @param {string} commentAuthor - The author of the comment.
+ * @param {DmobClient[]} apiClients - The list of clients from the DMob API.
  */
-export const checkIssueComment = async (
+export const checkIssue = async (
   issueNumber: number,
   issueBody: string,
-  commentBody: string,
-  commentAuthor: string
+  apiClients: DmobClient[]
 ) => {
   try {
-    logIssueDetails(issueNumber, issueBody, commentBody, commentAuthor)
+    logIssueDetails(issueNumber, issueBody)
 
     const parsedIssue: issue = parseIssue(issueBody)
     if (!parsedIssue.correct) {
@@ -45,7 +73,7 @@ export const checkIssueComment = async (
     const {
       success: extendSuccess, 
       modifiedIssue: issueWithClientData
-    } = await extendIssueWithClientData(parsedIssue)
+    } = await extendIssueWithClientData(parsedIssue, apiClients)
 
     if (!extendSuccess) return
 
@@ -254,26 +282,20 @@ const removeIssueLabel = async (issueNumber: number, label: string) => {
 }
 
 /**
- * Logs the details of an issue including the body, comment, and author of the comment.
+ * Logs the details of an issue including the body and its number.
  * 
  * @param {number} issueNumber - The number of the issue.
  * @param {string} issueBody - The body/content of the issue.
- * @param {string} commentBody - The body/content of the comment.
- * @param {string} commentAuthor - The author of the comment.
  * @returns {void}
  */
 const logIssueDetails = (
   issueNumber: number,
   issueBody: string,
-  commentBody: string,
-  commentAuthor: string
 ) => {
   const logs = [
     `Subsequent-Allocation-Bot started - check issue ${issueNumber}.`,
     `---------------------------------------------------`,
     `${config.logPrefix} ${issueNumber} ${issueBody}`,
-    `${config.logPrefix} ${issueNumber} ${commentBody}`,
-    `${config.logPrefix} ${issueNumber} ${commentAuthor}`
   ]
   logs.forEach(logGeneral)
 }
@@ -284,8 +306,7 @@ const logIssueDetails = (
  * @param {issue} issue - The issue to extend.
  * @returns {Object} - An object containing a success boolean and the modified issue.
  */
-const extendIssueWithClientData = async (issue: issue): Promise<{ success: boolean, modifiedIssue: issue }> => {
-  const apiClients = await getApiClients();
+const extendIssueWithClientData = async (issue: issue, apiClients: DmobClient[]): Promise<{ success: boolean, modifiedIssue: issue }> => {
   const client = apiClients.find(item => item.address === issue.address);
 
   if (!client) {
@@ -293,7 +314,7 @@ const extendIssueWithClientData = async (issue: issue): Promise<{ success: boole
     return { success: false, modifiedIssue: issue };
   }
 
-  const modifiedIssue = { ...issue }; // Hacemos una copia de issue
+  const modifiedIssue = { ...issue }; // Let's not modify the original issue
   modifiedIssue.idAddress = client.addressId;
   modifiedIssue.address = client.address;
   modifiedIssue.datacap = client.allowance;

@@ -1,9 +1,10 @@
-import { msigTopup, exceptionMsigTopup, addVerifiedClientLabel } from "./msigTopup";
-import { clientsTopup_v2 } from "./clientTopup_v2";
+import { checkIssues } from './checkIssues';
 
+(async () => {
+  try {
+    await checkIssues();
 
-
-msigTopup()
-exceptionMsigTopup()
-clientsTopup_v2();
-
+  } catch (error) {
+    console.log(`Error processing issues: ${error.message}`);
+  }
+})();
